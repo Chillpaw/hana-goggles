@@ -19,6 +19,10 @@ def _results(root):
     return [s.result for s in scan_folder(root)]
 
 
+def _by_id(results, view_id):
+    return next(r for r in results if r.view.id == view_id)
+
+
 def _codes(estate):
     return [w.code for w in estate.warnings]
 
@@ -157,7 +161,7 @@ def test_consumer_alone_is_unresolved(tmp_path):
     results = _results(tmp_path)
     estate = resolve_dependencies(results)
 
-    assert all(d.resolved_view_id is None for d in results[0].data_sources)
+    assert all(d.resolved_view_id is None for d in _by_id(results, "GENERIC_TAX_REPORTING_CUBE").data_sources)
     (w,) = estate.warnings
     assert (w.code, w.severity, w.view_id) == (
         "UNRESOLVED_VIEW_DEPENDENCY", Severity.WARNING, "GENERIC_TAX_REPORTING_CUBE")
@@ -268,7 +272,7 @@ def test_failed_view_is_listed_without_dependencies(tmp_path):
     put(tmp_path, "JUNK_1.calculationview", "not xml at all")
     put(tmp_path, "V_1.calculationview", view_xml("V_1", table_source("TABLE_A")))
     results = _results(tmp_path)
-    assert results[0].view.parse_status is ParseStatus.FAILED
+    assert _by_id(results, "JUNK_1").view.parse_status is ParseStatus.FAILED
     estate = resolve_dependencies(results)
     assert estate.views == ["JUNK_1", "V_1"]
     assert estate.deploy_order == ["JUNK_1", "V_1"]
@@ -301,7 +305,7 @@ def test_calc_view_without_uri_matches_by_name(tmp_path):
         view_xml("V_2", _source("V_1", "CALCULATION_VIEW", "")))
     results = _results(tmp_path)
     estate = resolve_dependencies(results)
-    assert results[1].data_sources[0].resolved_view_id == "V_1"
+    assert _by_id(results, "V_2").data_sources[0].resolved_view_id == "V_1"
     assert estate.deploy_order == ["V_1", "V_2"]
 
 
@@ -322,4 +326,30 @@ def test_odd_resource_uri_falls_back_to_name(tmp_path, missing):
     put(tmp_path, "V_2.calculationview", view_xml("V_2", calc_source("V_1", missing)))
     results = _results(tmp_path)
     resolve_dependencies(results)
-    assert results[1].data_sources[0].resolved_view_id == "V_1"
+    assert _by_id(results, "V_2").data_sources[0].resolved_view_id == "V_1"
+
+
+def test_rerun_clears_stale_resolution():
+    results = _results(FIXTURES / "graphical")
+    resolve_dependencies(results)
+    consumer = _by_id(results, "GENERIC_TAX_REPORTING_CUBE")
+    calc = next(d for d in consumer.data_sources if d.kind is DataSourceKind.CALC_VIEW)
+    assert calc.resolved_view_id == "SOURCE_VIEW_01"
+
+    estate = resolve_dependencies([consumer])
+    assert calc.resolved_view_id is None
+    assert _codes(estate) == ["UNRESOLVED_VIEW_DEPENDENCY"]
+
+
+def test_failed_view_never_wins_duplicate_id(tmp_path):
+    # The failed copy sorts first by package ("a" < "b") but must still lose.
+    put(tmp_path, "a/V_1.calculationview", "not xml at all")
+    put(tmp_path, "b/V_1.calculationview", view_xml("V_1", table_source("TABLE_A")))
+    results = _results(tmp_path)
+    assert [r.view.parse_status for r in results] == [ParseStatus.FAILED, ParseStatus.OK]
+    for order in (results, list(reversed(results))):
+        estate = resolve_dependencies(order)
+        assert [d.producer for d in estate.dependencies] == ["table:SCHEMA_1.TABLE_A"]
+        (w,) = estate.warnings
+        assert w.code == "DUPLICATE_VIEW_ID"
+        assert w.message.endswith("dependencies taken from the copy in b")

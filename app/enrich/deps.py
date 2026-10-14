@@ -3,7 +3,9 @@
 Matching rule (a ruling to confirm with the M4 audit): only calc-view sources resolve
 internally, keyed by the last `resource_uri` segment (else the source name) against
 `View.id`; several candidates are narrowed by package (the URI's first segment against
-`package_path` with "/" read as "."). The result is independent of input order.
+`package_path` with "/" read as "."). The package tie-break only decides internal vs
+leaf; the estate keeps one definition per bare view id. The result is independent of
+input order.
 """
 from __future__ import annotations
 
@@ -11,15 +13,19 @@ from collections import defaultdict
 
 from app.ir.graph import order_and_cycles
 from app.ir.models import (
-    DataSource, DataSourceKind, Estate, IRWarning, LeafKind, LeafSource, ParseResult, Severity,
-    ViewDependency,
+    DataSource, DataSourceKind, Estate, IRWarning, LeafKind, LeafSource, ParseResult, ParseStatus,
+    Severity, ViewDependency,
 )
 
 ROOT_PACKAGE = "(root)"
 
 
 def resolve_dependencies(results: list[ParseResult]) -> Estate:
-    """Build the Estate and set `DataSource.resolved_view_id` on internal matches."""
+    """Build the Estate and set `DataSource.resolved_view_id` on internal matches.
+    Earlier resolutions on the passed results are cleared first, so re-runs leave nothing stale."""
+    for result in results:
+        for ds in result.data_sources:
+            ds.resolved_view_id = None
     ordered = sorted(results, key=_sort_key)
     by_id: dict[str, list[ParseResult]] = defaultdict(list)
     for result in ordered:
@@ -32,12 +38,12 @@ def resolve_dependencies(results: list[ParseResult]) -> Estate:
             warnings.append(IRWarning(
                 view_id=view_id, code="DUPLICATE_VIEW_ID", severity=Severity.ERROR,
                 message=(f"view id {view_id!r} is defined {len(same)} times (packages: {packages}); "
-                         f"using the one in {_package_label(same[0].view.package_path)}")))
+                         f"dependencies taken from the copy in {_package_label(same[0].view.package_path)}")))
 
     dependencies: list[ViewDependency] = []
     leaves: dict[str, LeafSource] = {}
     for view_id, same in by_id.items():
-        result = same[0]  # the first in sorted order wins a duplicate id
+        result = same[0]  # the first in sorted order supplies a duplicate id's dependencies
         if not result.nodes:  # failed view: listed, but no dependencies
             continue
         for ds in result.data_sources:
@@ -121,5 +127,7 @@ def _package_label(package_path: str | None) -> str:
     return package_path or ROOT_PACKAGE
 
 
-def _sort_key(result: ParseResult) -> tuple[str, str, str]:
-    return (result.view.id, result.view.package_path or "", result.view.file_hash)
+def _sort_key(result: ParseResult) -> tuple[str, bool, str, str]:
+    # A failed view never beats a parsed one for a duplicate id.
+    v = result.view
+    return (v.id, v.parse_status is ParseStatus.FAILED, v.package_path or "", v.file_hash)

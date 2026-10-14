@@ -1,6 +1,7 @@
-"""`calcview` command line: import and serve. Audit and export arrive in M4.
+"""`calcview` command line: import, serve and audit. Export arrives later.
 
-`import` is a local command and may print view names; the audit command (M4) never does.
+`import` is a local command and may print view names; `audit` never does: it prints a
+structure-only report (see app/audit.py) meant to be carried out of the work boundary.
 """
 from __future__ import annotations
 
@@ -11,6 +12,7 @@ from pathlib import Path
 
 import uvicorn
 
+from app.audit import FORMATS, run_audit
 from app.ingest.importer import ImportReport, import_folder
 from app.ir.models import Estate, LeafKind
 from app.ir.store import Store, StoreVersionError
@@ -34,13 +36,32 @@ def main(argv: list[str] | None = None) -> int:
     serve = sub.add_parser("serve", help="start the web app on 127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--db", type=Path, default=None, help=_DB_HELP)
+
+    audit = sub.add_parser("audit", help="print a structure-only report of a folder (no names)")
+    audit.add_argument("folder", type=Path)
+    audit.add_argument("--format", choices=FORMATS, default="text")
     args = parser.parse_args(argv)
+
+    if args.command == "audit":
+        return _audit(args.folder, args.format)
 
     db = args.db if args.db is not None else default_db_path()
     if args.command == "import":
         return _import(args.folder, db, args.name)
     if args.command == "serve":
         return _serve(db, args.port)
+    return 0
+
+
+def _audit(folder: Path, fmt: str) -> int:
+    # The folder is the user's own argument, so echoing it in an error is fine; the report
+    # itself never contains it.
+    try:
+        output = run_audit(folder, fmt)
+    except NotADirectoryError:
+        print(f"calcview: {folder} is not a directory", file=sys.stderr)
+        return 2
+    sys.stdout.write(output)
     return 0
 
 

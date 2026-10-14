@@ -47,6 +47,19 @@ KNOWN_LOGICAL_MODEL_CHILDREN = {
 }
 # Containers that may appear empty inside deferred blocks without meaning anything.
 EMPTY_CONTAINER_PARTS = {"tableProxies", "joins", "layout", "shapes", "shape", "upperLeftCorner", "rectangleSize"}
+# Known children per element, checked by _check_children (UNKNOWN_ELEMENT otherwise).
+# Module-level so the structure audit (app/parsers/audit_scan.py) checks the same sets.
+ROOT_CHILDREN = HANDLED_ROOT_CHILDREN | IGNORED_ROOT_CHILDREN
+VARIABLE_CHILDREN = {"descriptions", "variableProperties"}
+VARIABLE_PROPERTIES_CHILDREN = {"valueDomain", "selection", "defaultRange"}
+DATASOURCE_CHILDREN = {"viewAttributes", "columnObject", "resourceUri"}
+VIEW_ATTRIBUTE_CHILDREN = {"descriptions"}
+CALCULATED_VIEW_ATTRIBUTE_CHILDREN = {"descriptions", "formula"}
+INPUT_CHILDREN = {"mapping"}
+ATTRIBUTE_CHILDREN = {"descriptions", "keyMapping"}
+BASE_MEASURE_CHILDREN = {"descriptions", "measureMapping"}
+CALCULATED_ATTRIBUTE_CHILDREN = {"descriptions", "keyCalculation"}
+CALCULATED_MEASURE_CHILDREN = {"descriptions", "formula"}
 DEFERRED_LOGICAL_MODEL_BLOCKS = {
     "privateDataFoundation": "PRIVATE_DATA_FOUNDATION_DEFERRED",
     "restrictedMeasures": "RESTRICTED_MEASURES_DEFERRED",
@@ -72,7 +85,7 @@ class _Builder:
         self._pending_inputs: list[tuple[Node, etree._Element]] = []
 
     def build(self) -> ParseResult:
-        self._check_children(self.root, HANDLED_ROOT_CHILDREN | IGNORED_ROOT_CHILDREN, None)
+        self._check_children(self.root, ROOT_CHILDREN, None)
         self._parse_parameters()
         self._parse_data_sources()
         self._parse_calculation_views()
@@ -95,19 +108,19 @@ class _Builder:
         column_map: list[ColumnMapItem] = []
         for attr in x.children(x.child(lm, "attributes"), "attribute"):
             name = attr.get("id") or ""
-            self._check_output_column(attr, {"descriptions", "keyMapping"}, node, is_measure=False)
+            self._check_output_column(attr, ATTRIBUTE_CHILDREN, node, is_measure=False)
             node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.ATTRIBUTE))
             column_map.extend(_output_mapping(x.child(attr, "keyMapping"), name))
         for measure in x.children(x.child(lm, "baseMeasures"), "measure"):
             name = measure.get("id") or ""
-            self._check_output_column(measure, {"descriptions", "measureMapping"}, node, is_measure=True)
+            self._check_output_column(measure, BASE_MEASURE_CHILDREN, node, is_measure=True)
             node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.MEASURE,
                                        aggregation=measure.get("aggregationType")))
             column_map.extend(_output_mapping(x.child(measure, "measureMapping"), name))
         for el in x.children(x.child(lm, "calculatedAttributes"), "calculatedAttribute"):
-            self._check_output_column(el, {"descriptions", "keyCalculation"}, node, is_measure=False)
+            self._check_output_column(el, CALCULATED_ATTRIBUTE_CHILDREN, node, is_measure=False)
         for el in x.children(x.child(lm, "calculatedMeasures"), "measure"):
-            self._check_output_column(el, {"descriptions", "formula"}, node, is_measure=True)
+            self._check_output_column(el, CALCULATED_MEASURE_CHILDREN, node, is_measure=True)
         node.columns.extend(self._calculated_columns(
             x.child(lm, "calculatedAttributes"), "calculatedAttribute", node, ColumnKind.ATTRIBUTE))
         node.columns.extend(self._calculated_columns(
@@ -165,9 +178,9 @@ class _Builder:
         for var in x.children(x.child(self.root, "localVariables"), "variable"):
             name = var.get("id") or ""
             props = x.child(var, "variableProperties")
-            self._check_children(var, {"descriptions", "variableProperties"}, None)
+            self._check_children(var, VARIABLE_CHILDREN, None)
             if props is not None:
-                self._check_children(props, {"valueDomain", "selection", "defaultRange"}, None)
+                self._check_children(props, VARIABLE_PROPERTIES_CHILDREN, None)
             attrs = props.attrib if props is not None else {}
             default = attrs.get("defaultValue")
             if default is None:
@@ -196,7 +209,7 @@ class _Builder:
             column_object = x.child(ds, "columnObject")
             ds_node = Node(id=node_id, view_id=self.vid, node_type=NodeType.DATASOURCE,
                            name=ds_id, raw=x.raw(ds), understood=kind is not DataSourceKind.UNKNOWN)
-            self._check_children(ds, {"viewAttributes", "columnObject", "resourceUri"}, ds_node)
+            self._check_children(ds, DATASOURCE_CHILDREN, ds_node)
             uri = x.text(x.child(ds, "resourceUri"))
             if column_object is not None:
                 schema_name, name = column_object.get("schemaName"), column_object.get("columnObjectName") or ds_id
@@ -259,7 +272,7 @@ class _Builder:
         node.columns.extend(self._view_attributes(cv, node))
         calculated = x.child(cv, "calculatedViewAttributes")
         for ca in x.children(calculated, "calculatedViewAttribute"):
-            self._check_children(ca, {"descriptions", "formula"}, node)
+            self._check_children(ca, CALCULATED_VIEW_ATTRIBUTE_CHILDREN, node)
         node.columns.extend(self._calculated_columns(
             calculated, "calculatedViewAttribute", node, ColumnKind.ATTRIBUTE))
         for f in x.children(cv, "filter"):
@@ -278,7 +291,7 @@ class _Builder:
         node_id = node.id
         columns = []
         for va in x.children(x.child(cv, "viewAttributes"), "viewAttribute"):
-            self._check_children(va, {"descriptions"}, node)
+            self._check_children(va, VIEW_ATTRIBUTE_CHILDREN, node)
             name = va.get("id") or ""
             aggregation = va.get("aggregationType")
             columns.append(Column(
@@ -339,7 +352,7 @@ class _Builder:
 
     def _resolve_inputs(self) -> None:
         for node, inp in self._pending_inputs:
-            self._check_children(inp, {"mapping"}, node)
+            self._check_children(inp, INPUT_CHILDREN, node)
             ref = _ref(inp.get("node"))
             source = self.nodes.get(ref)
             if source is None:

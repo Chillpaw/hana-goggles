@@ -27,6 +27,23 @@ calcview serve --db project.db
 
 The server always binds to 127.0.0.1; there is no option to change the host.
 
+## Running the audit at work
+
+The audit tells us what the parser meets in the real folder without carrying any business content out:
+
+```
+calcview audit path/to/views > audit.txt
+calcview audit path/to/views --format json > audit.json
+```
+
+It reads the folder directly (no database is opened or created) and prints the same report in either format.
+
+**What it prints:** file counts by suffix, parse status and view type; warning codes and their counts; coverage percentages (sorted, plus a histogram); how many view ids are shared by more than one file (counts only); namespace URIs; every XML element and attribute name, with counts and parent > child pairs; `xsi:type` values; the values of a fixed list of schema-enum attributes (such as `dataCategory`, `DataSource@type`, `joinType`, `aggregationType`, datatypes), with anything that does not look like an enum token shown as `<other>`; the shape of each `resourceUri` with every name replaced by its role (e.g. `/<package>/calculationviews/<name>`); counts of expressions by language; column-engine function names; and unknown elements by parent > child.
+
+**What it never prints:** file names, folder paths, view, node, column or parameter ids and names, schema and table names, descriptions, literals, formulas and filter text, parameter defaults, or warning messages. SQL-language expressions are only counted. Nothing from a project database is printed.
+
+**Before bringing it back:** read it. The section "Column-engine functions (unparsed text; review before sharing)" is mined from formulas that did not parse, after removing quoted strings, quoted column names and `$$…$$` placeholders; check that every entry there is a function name. Then copy the file out (JSON is the easier one to diff here) and add it to the conversation.
+
 ## More
 
 - Spec: `docs/` (see `CalcView Migrator — Spec v0.1.md`) and plans in `docs/superpowers/plans/`.

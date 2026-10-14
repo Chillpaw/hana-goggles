@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Leak-test fixture for the structure-only audit (M4). Every place a business string can
+     live carries a LEAKCANARY sentinel; the audit output must never contain one. -->
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" schemaVersion="2.3" id="LEAKCANARY_VIEW" applyPrivilegeType="NONE" visibility="internal" calculationScenarioType="TREE_BASED" dataCategory="CUBE" executionSemantic="UNDEFINED" outputViewType="Aggregation" defaultClient="$$LEAKCANARY_CLIENT$$">
+  <origin/>
+  <descriptions defaultDescription="LeakCanary_view_description"/>
+  <localVariables>
+    <variable id="LEAKCANARY_IP" parameter="true">
+      <descriptions defaultDescription="LeakCanary_parameter_description"/>
+      <variableProperties datatype="NVARCHAR" length="10" mandatory="false" defaultValue="LEAKCANARY_DEFAULT">
+        <valueDomain type="empty"/>
+        <selection multiline="false" type="SingleValue"/>
+      </variableProperties>
+    </variable>
+    <variable id="LEAKCANARY_RANGE_IP" parameter="true">
+      <variableProperties datatype="LEAKCANARY_BAD_TYPE!" mandatory="false">
+        <valueDomain type="empty"/>
+        <selection multiline="false" type="Interval"/>
+        <defaultRange lowValue="LEAKCANARY_LOW" highValue="LEAKCANARY_HIGH"/>
+      </variableProperties>
+    </variable>
+  </localVariables>
+  <variableMappings>
+    <mapping xsi:type="Variable:VariableMapping" dataSource="#LEAKCANARY_DS_VIEW">
+      <targetVariable name="LEAKCANARY_TARGET" resourceUri="/leakcanary.pkg/calculationviews/LEAKCANARY_UPSTREAM"/>
+      <localVariable>#LEAKCANARY_IP</localVariable>
+    </mapping>
+    <mapping xsi:type="Variable:ConstantVariableMapping" dataSource="#LEAKCANARY_DS_VIEW" value="LEAKCANARY_CONSTANT_VALUE">
+      <targetVariable name="LEAKCANARY_TARGET_2" resourceUri="/leakcanary.pkg/calculationviews/LEAKCANARY_UPSTREAM"/>
+    </mapping>
+  </variableMappings>
+  <dataSources>
+    <DataSource id="LEAKCANARY_DS_TABLE" type="DATA_BASE_TABLE">
+      <viewAttributes allViewAttributes="true"/>
+      <columnObject schemaName="LEAKCANARY_SCHEMA" columnObjectName="LEAKCANARY_TABLE"/>
+    </DataSource>
+    <DataSource id="LEAKCANARY_DS_VIEW" type="CALCULATION_VIEW">
+      <viewAttributes allViewAttributes="true"/>
+      <resourceUri>/leakcanary.pkg/calculationviews/LEAKCANARY_UPSTREAM</resourceUri>
+    </DataSource>
+    <DataSource id="LEAKCANARY_DS_HDI" type="CALCULATION_VIEW">
+      <resourceUri>leakcanary.hdi::LEAKCANARY_HDI_VIEW</resourceUri>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="LEAKCANARY_PROJECTION" filterExpressionLanguage="COLUMN_ENGINE">
+      <descriptions defaultDescription="LeakCanary_projection_description"/>
+      <viewAttributes>
+        <viewAttribute id="LEAKCANARY_COL_1"/>
+        <viewAttribute id="LEAKCANARY_COL_2"/>
+        <viewAttribute id="LEAKCANARY_AMT"/>
+      </viewAttributes>
+      <calculatedViewAttributes>
+        <calculatedViewAttribute datatype="NVARCHAR" id="LEAKCANARY_CALC_PARSED" length="20" expressionLanguage="COLUMN_ENGINE">
+          <formula>if(leftstr(&quot;LEAKCANARY_COL_1&quot;, 3) = 'LEAKCANARY_LITERAL', 'LEAKCANARY_YES', $$LEAKCANARY_IP$$)</formula>
+        </calculatedViewAttribute>
+        <calculatedViewAttribute datatype="INTEGER" id="LEAKCANARY_CALC_UNPARSED" expressionLanguage="COLUMN_ENGINE">
+          <formula>daysbetween(&quot;LEAKCANARY_QUOTED_FN&quot;(1), 'LEAKCANARY_LITERAL_FN(2)', '$$LEAKCANARY_PLACEHOLDER_FN$$'(3), $$LEAKCANARY_IP$$(4)</formula>
+        </calculatedViewAttribute>
+        <calculatedViewAttribute datatype="INTEGER" id="LEAKCANARY_CALC_SQL" expressionLanguage="SQL">
+          <formula>LEAKCANARY_SQL_FUNC(LEAKCANARY_SQL_COL) + LEAKCANARY_OTHER_COL (1)</formula>
+        </calculatedViewAttribute>
+      </calculatedViewAttributes>
+      <input node="#LEAKCANARY_DS_TABLE">
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_COL_1" source="LEAKCANARY_SRC_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_COL_2" source="LEAKCANARY_SRC_2"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_AMT" source="LEAKCANARY_SRC_AMT"/>
+      </input>
+      <filter>(&quot;LEAKCANARY_COL_2&quot; = 'LEAKCANARY_FILTER_VALUE')</filter>
+    </calculationView>
+    <calculationView xsi:type="Calculation:UnionView" id="LEAKCANARY_UNION">
+      <viewAttributes>
+        <viewAttribute id="LEAKCANARY_COL_1"/>
+        <viewAttribute id="LEAKCANARY_AMT"/>
+        <viewAttribute id="LEAKCANARY_TAG"/>
+      </viewAttributes>
+      <input emptyUnionBehavior="NO_ROW" node="#LEAKCANARY_PROJECTION">
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_COL_1" source="LEAKCANARY_COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_AMT" source="LEAKCANARY_AMT"/>
+        <mapping xsi:type="Calculation:ConstantAttributeMapping" target="LEAKCANARY_TAG" null="false" value="LEAKCANARY_CONSTANT"/>
+      </input>
+      <input emptyUnionBehavior="NO_ROW" node="#LEAKCANARY_DS_VIEW">
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_COL_1" source="LEAKCANARY_COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_AMT" source="LEAKCANARY_AMT"/>
+        <mapping xsi:type="Calculation:ConstantAttributeMapping" target="LEAKCANARY_TAG" null="true"/>
+      </input>
+    </calculationView>
+    <calculationView xsi:type="Calculation:AggregationView" id="LEAKCANARY_AGGREGATION">
+      <viewAttributes>
+        <viewAttribute id="LEAKCANARY_COL_1">
+          <filter xsi:type="AccessControl:SingleValueFilter" including="true" value="LEAKCANARY_ATTR_FILTER"/>
+        </viewAttribute>
+        <viewAttribute id="LEAKCANARY_AMT" aggregationType="sum"/>
+      </viewAttributes>
+      <input node="#LEAKCANARY_UNION">
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_COL_1" source="LEAKCANARY_COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="LEAKCANARY_AMT" source="LEAKCANARY_AMT"/>
+      </input>
+    </calculationView>
+  </calculationViews>
+  <logicalModel id="LEAKCANARY_AGGREGATION">
+    <descriptions defaultDescription="LeakCanary_output_description"/>
+    <attributes>
+      <attribute id="LEAKCANARY_COL_1" order="1">
+        <descriptions defaultDescription="LeakCanary_column_description"/>
+        <keyMapping columnObjectName="LEAKCANARY_AGGREGATION" columnName="LEAKCANARY_COL_1"/>
+      </attribute>
+    </attributes>
+    <calculatedAttributes/>
+    <baseMeasures>
+      <measure id="LEAKCANARY_AMT" order="2" aggregationType="sum" measureType="simple">
+        <descriptions defaultDescription="LeakCanary_measure_description"/>
+        <measureMapping columnObjectName="LEAKCANARY_AGGREGATION" columnName="LEAKCANARY_AMT"/>
+      </measure>
+    </baseMeasures>
+    <calculatedMeasures>
+      <measure id="LEAKCANARY_CALC_MEASURE" order="3" aggregationType="sum" measureType="simple" datatype="DECIMAL" length="17" scale="2" expressionLanguage="COLUMN_ENGINE">
+        <formula>&quot;LEAKCANARY_AMT&quot; * 2</formula>
+      </measure>
+    </calculatedMeasures>
+  </logicalModel>
+  <informationModelLayout relativeWidthScenario="LEAKCANARY_LAYOUT">LEAKCANARY_LAYOUT_TEXT</informationModelLayout>
+</Calculation:scenario>

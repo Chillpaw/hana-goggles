@@ -1,0 +1,67 @@
+{
+  "views": [
+    "GENERIC_TAX_REPORTING_CUBE",
+    "SOURCE_VIEW_01"
+  ],
+  "dependencies": [
+    {
+      "consumer": "GENERIC_TAX_REPORTING_CUBE",
+      "producer": "SOURCE_VIEW_01",
+      "data_source_id": "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01",
+      "internal": true
+    },
+    {
+      "consumer": "GENERIC_TAX_REPORTING_CUBE",
+      "producer": "table:SCHEMA_1.TABLE_A",
+      "data_source_id": "GENERIC_TAX_REPORTING_CUBE/TABLE_A",
+      "internal": false
+    },
+    {
+      "consumer": "GENERIC_TAX_REPORTING_CUBE",
+      "producer": "table:SCHEMA_1.TABLE_B",
+      "data_source_id": "GENERIC_TAX_REPORTING_CUBE/TABLE_B",
+      "internal": false
+    },
+    {
+      "consumer": "SOURCE_VIEW_01",
+      "producer": "table:SCHEMA_1.TABLE_C",
+      "data_source_id": "SOURCE_VIEW_01/TABLE_C",
+      "internal": false
+    }
+  ],
+  "leaf_sources": [
+    {
+      "id": "table:SCHEMA_1.TABLE_A",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_A",
+      "used_by": [
+        "GENERIC_TAX_REPORTING_CUBE"
+      ]
+    },
+    {
+      "id": "table:SCHEMA_1.TABLE_B",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_B",
+      "used_by": [
+        "GENERIC_TAX_REPORTING_CUBE"
+      ]
+    },
+    {
+      "id": "table:SCHEMA_1.TABLE_C",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_C",
+      "used_by": [
+        "SOURCE_VIEW_01"
+      ]
+    }
+  ],
+  "deploy_order": [
+    "SOURCE_VIEW_01",
+    "GENERIC_TAX_REPORTING_CUBE"
+  ],
+  "cycles": [],
+  "warnings": []
+}

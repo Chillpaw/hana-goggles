@@ -4,9 +4,10 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+
+from app.web.routes import register_error_handlers, router
 
 HOST = "127.0.0.1"
 WEB_DIR = Path(__file__).parent / "web"
@@ -25,15 +26,13 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app = FastAPI(title="CalcView Migrator", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db_path = Path(db_path if db_path is not None else default_db_path()).resolve()
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
-    templates = Jinja2Templates(directory=WEB_DIR / "templates")
-
-    @app.get("/")
-    def index(request: Request):
-        return templates.TemplateResponse(request, "index.html", {})
+    register_error_handlers(app)
 
     @app.get("/health")
     def health():
         return {"status": "ok"}
+
+    app.include_router(router)
 
     return app
 

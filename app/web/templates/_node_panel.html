@@ -1,0 +1,19 @@
+{% from "_macros.html" import warnings_table, columns_table, type_badge %}
+<div class="node-panel">
+  <h2>{{ node.name }} {{ type_badge(node) }}</h2>
+  <p class="headline">{{ description.headline|prose }}</p>
+  {% if description.details %}
+    <ul>{% for line in description.details %}<li>{{ line|prose }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if resolved_view %}
+    <p>Defined in this project: <a href="{{ view_url(resolved_view) }}">open {{ resolved_view }}</a></p>
+  {% endif %}
+  <h3>Columns</h3>
+  {{ columns_table(node) }}
+  <h3>Warnings</h3>
+  {{ warnings_table(warnings, {node.id: node.name}, "No warnings for this step.") }}
+  <details>
+    <summary>Raw XML</summary>
+    <pre>{{ node.raw }}</pre>
+  </details>
+</div>

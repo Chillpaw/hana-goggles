@@ -1,0 +1,46 @@
+{% macro warnings_table(warnings, node_names, empty="No warnings.") %}
+  {% if warnings %}
+    <table class="warnings">
+      <thead><tr><th>Severity</th><th>Code</th><th>Step</th><th>Line</th><th>Message</th></tr></thead>
+      <tbody>
+      {% for w in warnings %}
+        <tr>
+          <td><span class="badge {{ w.severity }}">{{ w.severity }}</span></td>
+          <td class="mono">{{ w.code }}</td>
+          <td>{% if w.node_id %}{{ node_names.get(w.node_id, w.node_id) }}{% endif %}</td>
+          <td class="num">{{ w.line if w.line is not none else "" }}</td>
+          <td>{{ w.message }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">{{ empty }}</p>
+  {% endif %}
+{% endmacro %}
+
+{% macro columns_table(node) %}
+  {% if node.columns %}
+    <table class="columns">
+      <thead><tr><th>Column</th><th>Kind</th><th>Type</th><th>Aggregation</th><th>Calculation</th></tr></thead>
+      <tbody>
+      {% for c in node.columns %}
+        <tr>
+          <td class="mono">{{ c.name }}</td>
+          <td>{{ c.kind }}</td>
+          <td class="mono">{{ column_type(c) }}</td>
+          <td>{{ c.aggregation or "" }}</td>
+          <td>{% if c.expression %}{{ render_expression(c.expression)|prose }}{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No columns listed for this step.</p>
+  {% endif %}
+{% endmacro %}
+
+{% macro type_badge(node) -%}
+  <span class="badge type-{{ node.node_type }}">{{ node.node_type|replace("_", " ") }}</span>
+  {%- if not node.understood %} <span class="badge failed" title="Not fully understood by the parser">not understood</span>{% endif %}
+{%- endmacro %}

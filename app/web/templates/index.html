@@ -1,15 +1,20 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>CalcView Migrator</title>
-  <script src="/static/vendor/htmx.min.js"></script>
-  <script src="/static/vendor/cytoscape.min.js"></script>
-  <script src="/static/vendor/dagre.min.js"></script>
-  <script src="/static/vendor/cytoscape-dagre.js"></script>
-</head>
-<body>
-  <h1>CalcView Migrator</h1>
-  <p>No projects yet. Folder import arrives in M3.</p>
-</body>
-</html>
+{% extends "base.html" %}
+{% block content %}
+  <h1>Import a folder of calculation views</h1>
+  {% if error %}<p class="callout bad">{{ error }}</p>{% endif %}
+  <form method="post" action="/import">
+    <label for="folder">Folder path</label>
+    <input type="text" id="folder" name="folder" size="70" value="{{ folder }}"
+           placeholder="/path/to/exported/views" autofocus>
+    <button type="submit">Import</button>
+  </form>
+  <h2>How it works</h2>
+  <ol>
+    <li>Point at a folder on this computer that holds <code>.calculationview</code> or
+        <code>.hdbcalculationview</code> files. Sub-folders become packages.</li>
+    <li>Each file is parsed into the project database. Nothing leaves this machine.</li>
+    <li>Browse the views list, open a view to see its steps as a graph and in plain English.</li>
+    <li>Re-import the same folder at any time; notes stay, and are flagged when the view changed.</li>
+  </ol>
+  <p class="muted">From a terminal: <code>calcview import &lt;folder&gt; --db &lt;file&gt;</code>.</p>
+{% endblock %}

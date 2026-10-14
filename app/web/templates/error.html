@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · CalcView Migrator{% endblock %}
+{% block content %}
+  <h1>{{ title }}</h1>
+  <p class="callout bad">{{ message }}</p>
+  {% if project %}
+    <form method="post" action="/import">
+      <input type="hidden" name="folder" value="{{ project.source_folder }}">
+      <button type="submit">Re-import {{ project.source_folder }}</button>
+    </form>
+  {% endif %}
+  <p><a href="/views">Back to views</a></p>
+{% endblock %}

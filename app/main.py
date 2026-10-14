@@ -20,8 +20,8 @@ def default_db_path() -> Path:
 
 
 def create_app(db_path: Path | None = None) -> FastAPI:
-    """Build the app. The database is not opened here: routes open a Store per request
-    (see `app.web.deps.get_store`), so creating the app never creates the db file."""
+    """Build the app. The database is not opened here: routes open one Store per request
+    (see `app.web.deps`), so creating the app never creates the db file."""
     app = FastAPI(title="CalcView Migrator", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.db_path = Path(db_path if db_path is not None else default_db_path()).resolve()
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
@@ -38,4 +38,5 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     return app
 
 
+# Freezes cwd and $CALCVIEW_DB at import time; never opens the db (routes do, per request).
 app = create_app()

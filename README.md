@@ -23,7 +23,7 @@ calcview import path/to/views --db project.db
 calcview serve --db project.db
 ```
 
-`--db` defaults to `./calcview.db`; `serve` without `--db` uses the `CALCVIEW_DB` environment variable when it is set. Running `import` again on the same folder re-imports it: unchanged files are skipped, changed views replace the stored ones, and notes on changed views or nodes are marked stale. `import --name NAME` sets the project name (default: the folder name). The import report lists counts, internal and unresolved dependencies, cycles, deploy order and warnings. The database holds work data and stays on your machine; `*.db` files are git-ignored.
+`--db` defaults to the `CALCVIEW_DB` environment variable when it is set, else `./calcview.db`. `serve` refuses to start (exit 2) if the file exists but is not a CalcView project. Running `import` again on the same folder re-imports it: unchanged files keep their notes (and are counted as reparsed if this build parses them differently), changed views replace the stored ones, and notes on changed views or nodes are marked stale. `import --name NAME` sets the project name (default: the existing name, else the folder name). The import report lists counts (added, changed, unchanged, reparsed, removed, failed, stale annotations), internal dependencies, leaf sources (tables and table functions), unresolved sources (views outside the folder, ambiguous or unknown sources), cycles, deploy order and warnings. The database holds work data and stays on your machine; `*.db` files are git-ignored.
 
 The server always binds to 127.0.0.1; there is no option to change the host.
 

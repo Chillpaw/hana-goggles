@@ -6,7 +6,7 @@ Spec: `docs/CalcView Migrator — Spec v0.1.md`. Plans: `docs/superpowers/plans/
 - Install: `python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]" -c constraints.txt`
 - Test: `pytest -q`
 - Regenerate golden IR (then review the diff by hand): `UPDATE_GOLDEN=1 pytest tests/test_golden_ir.py`
-- Import: `calcview import <folder> --db <file>` (default db `./calcview.db`)
+- Import: `calcview import <folder> --db <file>` (default db `$CALCVIEW_DB`, else `./calcview.db`)
 - Serve: `calcview serve --db <file>` (always 127.0.0.1)
 
 ## Rules

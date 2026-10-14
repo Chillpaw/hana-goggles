@@ -1,3 +1,5 @@
+import sqlite3
+
 import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
@@ -5,7 +7,7 @@ from fastapi.testclient import TestClient
 import app.cli as cli
 from app.ir.store import Store
 from app.main import HOST, create_app
-from app.web.deps import get_store
+from app.web.deps import get_existing_store, get_store
 
 
 def test_health_endpoint():
@@ -94,5 +96,38 @@ def test_get_store_opens_per_request_and_closes(tmp_path):
     assert len(opened) == 2 and opened[0] is not opened[1]
     assert db.exists()
     for store in opened:  # closed after the response
-        with pytest.raises(Exception):
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
             store.conn.execute("SELECT 1")
+
+
+def test_get_existing_store_yields_none_and_never_creates_db(tmp_path):
+    db = tmp_path / "p.db"
+    app = create_app(db)
+
+    @app.get("/probe")
+    def probe(store: Store | None = Depends(get_existing_store)):
+        return {"store": store is not None, "project": store.get_project() if store else None}
+
+    client = TestClient(app)
+    assert client.get("/probe").json() == {"store": False, "project": None}
+    assert not db.exists()
+    Store(db).close()
+    assert client.get("/probe").json() == {"store": True, "project": None}
+
+
+def test_serve_fails_fast_on_unusable_db(monkeypatch, tmp_path, capsys):
+    db = tmp_path / "other.db"
+    db.write_bytes(b"this is not sqlite at all, just text" * 10)
+    called = []
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: called.append(app))
+    assert cli.main(["serve", "--db", str(db)]) == 2
+    err = capsys.readouterr().err
+    assert called == [] and err.count("\n") == 1 and "cannot use database" in err
+
+
+def test_serve_accepts_existing_project_db(monkeypatch, tmp_path):
+    db = tmp_path / "p.db"
+    Store(db).close()
+    called = []
+    monkeypatch.setattr(cli.uvicorn, "run", lambda app, **kw: called.append(app))
+    assert cli.main(["serve", "--db", str(db)]) == 0 and len(called) == 1

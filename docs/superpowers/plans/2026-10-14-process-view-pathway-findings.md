@@ -18,8 +18,22 @@ Carried forward from the subagent-driven build of plan `2026-10-14-process-view-
 - Ruling (T3): URI package = first non-empty segment when the URI has ≥3 segments; match key falls back from last URI segment to source name to DataSource id — confirm with the audit's resourceUri shapes.
 - Ruling (T3): one `CYCLE` warning per cycle (view_id None), not one per member; per-view pages read `estate.cycles` — cost if wrong: duplicate counts if changed later.
 - Ruling (T3): `Estate` fields carry default factories (same shape as specified) — cost if wrong: none.
+- Ruling (T4): the store keeps the IR as a `ParseResult` JSON blob plus summary `view`/`node` tables, not fully flattened columns/edges — revisit at M7 when field-level remapping needs per-column rows.
+- Ruling (T4 review): an unchanged file hash still re-parses; if the fresh JSON differs from the stored text the row is rewritten and counted `reparsed`, with no stale marks except "node removed". This lets parser fixes from the audit loop reach stored views and repairs rows written by an older IR — cost if wrong: none; it costs one parse per file, which the scan does anyway.
+- Ruling (T4): a file renamed within its package (identical JSON, new rel_path) rewrites the row and counts `unchanged` — cost if wrong: one line to count it as reparsed.
+- Ruling (T4): duplicate view ids in one scan prefer a parsed file over a failed one, then sorted rel_path (matches T3).
+- Ruling (T4): `DUPLICATE_NODE_ID` (parser warning) covers repeated calculationView/DataSource ids and a calculationView named `Semantics`; the last node still wins; such views now parse `partial`. Settles the M1 deferred duplicate-id findings.
+- Ruling (T4): transactions use `BEGIN IMMEDIATE`, savepoints when nested, busy_timeout 5000; connections use `check_same_thread=False` because each request owns its Store.
+- Ruling (T5): GET pages use `get_existing_store` (never creates a db); only POST /import creates one. `serve` fails fast on an unusable db; `import` and `serve` both honour `$CALCVIEW_DB`.
+- Ruling (T5): the import report splits "Leaf sources" (tables, table functions) from "Unresolved" (external, unknown, ambiguous); counts are consumer→producer lines, not distinct sources.
+- Ruling (T6): projection "Takes N columns" counts non-calculated columns; the output headline counts all columns including calculated ones (both pinned by the plan's fixture sentences).
+- Ruling (T6): a calc-view source with no estate and no resolution gets no detail (neither "Defined in this project" nor "external") — Task 7 and M6 must not "fix" this.
+- Ruling (T6): invented wording for gaps (CDS, opaque, script statement, unknown cardinality, no join columns, missing inputs, unknown aggregation) — each states the gap visibly; see the plan's Task 6 rules.
 
 ## Deferred minor findings
+- T6 → T7: a failed view yields no steps; the Steps tab must show a "could not be parsed" message with the view warnings.
+- T6 → T7: `` `raw` (not parsed) `` text must be styled/escaped in HTML, not rendered as Markdown.
+- T4: a failed import that created a db removes the .db but not a stray -journal file.
 - T3: `order_and_cycles(estate)` runs on a half-built Estate; consider taking views + dependencies directly.
 - T3: `used_by` collected by append then de-duplicated; could use sets.
 - T3: `test_warnings_are_deterministic` overlaps the input-order test.

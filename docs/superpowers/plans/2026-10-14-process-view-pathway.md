@@ -306,7 +306,7 @@ Never printed: file names, paths, ids, names, column names, descriptions, litera
 - `estate_mermaid(estate, include_leaves=True) -> str` and `view_mermaid(result) -> str`: `flowchart LR` (`BT` for a view, matching the canvas); node ids sanitised to `n<index>` with a stable mapping; labels quoted with `"` escaped as `#quot;`; leaf sources shaped `[( )]`, views `[ ]`, cycle edges annotated. Golden file for the fixture estate.
 - Routes: `GET /estate` (canvas, colour-by selector: parse status / view type / data category / sign-off; toggle leaf sources; search box; deploy order list; cycle errors shown at the top), `GET /estate.mmd` and `GET /views/{view_id}.mmd` (`text/plain`, `Content-Disposition: attachment`), nav link from every page.
 - `estate.js`: dagre `rankDir: 'LR'`; tap a view → highlight its upstream (predecessors) and downstream (successors), dim the rest; double-tap → open the view page; PNG export via `cy.png({full: true, scale: 2})` into a download link (no network). Legend for the current colour mode.
-- [ ] Tests: estate elements for the fixture folder (2 views, 2 leaf tables, 3 edges, 1 internal); cycle folder marks `in_cycle`; Mermaid golden; `.mmd` endpoints return attachments; `/estate` 200 with embedded JSON; remote-URL guard covers `estate.js`.
+- [ ] Tests: estate elements for the fixture folder (2 views, 3 leaf tables, 4 edges, 1 internal); cycle folder marks `in_cycle`; Mermaid golden; `.mmd` endpoints return attachments; `/estate` 200 with embedded JSON; remote-URL guard covers `estate.js`.
 - [ ] Commit: `feat(m9a): estate map with PNG and Mermaid export`.
 
 ---

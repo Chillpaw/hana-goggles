@@ -1,11 +1,15 @@
-"""Folder scan: find view files under a root, derive package paths, parse each (never raises)."""
+"""Folder scan: find view files under a root, derive package paths, parse each (never raises).
+
+Problems with the folder itself (unreadable directories, file names that are not valid
+UTF-8) are never dropped silently: they are appended to the caller's `warnings` list.
+"""
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from app.ir.models import ParseResult
+from app.ir.models import IRWarning, ParseResult, Severity
 from app.parsers.dispatch import parse_file
 
 VIEW_SUFFIXES = (".calculationview", ".hdbcalculationview")   # matched case-insensitively
@@ -19,25 +23,14 @@ class ScannedView:
     result: ParseResult
 
 
-def find_view_files(root: Path) -> list[Path]:
-    root = _check_root(root)
-    found: list[tuple[str, Path]] = []
-    # followlinks=False stops os.walk descending into symlinked directories (avoids loops);
-    # pruning dirnames in place skips hidden directories such as .git.
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
-        for name in filenames:
-            if name.lower().endswith(VIEW_SUFFIXES):
-                path = Path(dirpath) / name
-                found.append((path.relative_to(root).as_posix(), path))
-    found.sort(key=lambda item: item[0])
-    return [path for _, path in found]
+def find_view_files(root: Path, warnings: list[IRWarning] | None = None) -> list[Path]:
+    return _walk(_check_root(root), warnings if warnings is not None else [])
 
 
-def scan_folder(root: Path) -> list[ScannedView]:
+def scan_folder(root: Path, warnings: list[IRWarning] | None = None) -> list[ScannedView]:
     root = _check_root(root)
     scanned = []
-    for path in find_view_files(root):
+    for path in _walk(root, warnings if warnings is not None else []):
         rel = path.relative_to(root)
         package_path = rel.parent.as_posix() if rel.parent != Path(".") else None
         result = parse_file(path, package_path=package_path)
@@ -46,9 +39,62 @@ def scan_folder(root: Path) -> list[ScannedView]:
     return scanned
 
 
+def _walk(root: Path, warnings: list[IRWarning]) -> list[Path]:
+    """Recursive scan of an already-resolved root, sorted by rel posix path."""
+    found: list[tuple[str, Path]] = []
+
+    def on_error(exc: OSError) -> None:
+        where = _rel_text(root, exc.filename)
+        warnings.append(IRWarning(code="SCAN_DIR_UNREADABLE", severity=Severity.ERROR,
+                                  message=f"cannot read folder {where}: {exc.strerror}"))
+
+    # followlinks=False stops os.walk descending into symlinked directories (avoids loops);
+    # pruning dirnames in place skips hidden directories such as .git.
+    for dirpath, dirnames, filenames in os.walk(root, onerror=on_error, followlinks=False):
+        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        for name in filenames:
+            # Hidden files include macOS resource forks such as ._X.calculationview.
+            if name.startswith(".") or not name.lower().endswith(VIEW_SUFFIXES):
+                continue
+            path = Path(dirpath) / name
+            rel = path.relative_to(root).as_posix()
+            if not _is_utf8(rel):
+                # Undecodable bytes survive as surrogate escapes, which would break
+                # later text storage (e.g. SQLite), so the file is skipped visibly.
+                warnings.append(IRWarning(code="SCAN_BAD_FILENAME", severity=Severity.WARNING,
+                                          message=f"skipped file with a non-UTF-8 name: "
+                                                  f"{_escaped(rel)}"))
+                continue
+            found.append((rel, path))
+    found.sort(key=lambda item: item[0])
+    return [path for _, path in found]
+
+
 def _check_root(root: Path) -> Path:
     # A bad root is a usage error, not an input file, so it is allowed to raise.
     root = Path(root).resolve()
     if not root.is_dir():
         raise NotADirectoryError(f"not a directory: {root}")
     return root
+
+
+def _rel_text(root: Path, filename: str | os.PathLike[str] | None) -> str:
+    if filename is None:
+        return "."
+    try:
+        rel = Path(filename).relative_to(root).as_posix()
+    except ValueError:
+        rel = Path(filename).as_posix()
+    return _escaped(rel)
+
+
+def _is_utf8(text: str) -> bool:
+    try:
+        text.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _escaped(text: str) -> str:
+    return text.encode("utf-8", "backslashreplace").decode("utf-8")

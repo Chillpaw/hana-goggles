@@ -1,0 +1,28 @@
+{
+  "view": {
+    "id": "truncated",
+    "name": "truncated",
+    "package_path": null,
+    "view_type": "unknown",
+    "data_category": "UNKNOWN",
+    "schema_version": null,
+    "file_hash": "7973697fec0762ff7197d141bfd48c4207b39c63de5c5976af6e123e387f199f",
+    "parse_status": "failed",
+    "coverage_pct": 0.0
+  },
+  "nodes": [],
+  "edges": [],
+  "parameters": [],
+  "parameter_mappings": [],
+  "data_sources": [],
+  "warnings": [
+    {
+      "view_id": "truncated",
+      "node_id": null,
+      "code": "XML_SYNTAX",
+      "message": "file is not well-formed XML",
+      "severity": "error",
+      "line": null
+    }
+  ]
+}

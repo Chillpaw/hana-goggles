@@ -1,5 +1,6 @@
 """Hand-written checks for the M3 dependency fixtures: the producer view the main
 fixture reads (SOURCE_VIEW_01) and a two-view cycle (CYCLE_A <-> CYCLE_B)."""
+from conftest import MAIN
 from helpers import column, node
 
 from app.ir.models import (
@@ -7,7 +8,6 @@ from app.ir.models import (
 )
 
 PRODUCER = "graphical/SOURCE_VIEW_01.calculationview"
-MAIN = "graphical/GENERIC_TAX_REPORTING_CUBE.calculationview"
 
 
 def _types(result):
@@ -45,7 +45,9 @@ def test_producer_parameter_matches_consumer_target_variable(parse_fixture):
     assert any(u.usage is ParamUsage.FILTER for u in param.used_in)
 
     consumer = parse_fixture(MAIN)
-    assert {m.target_parameter for m in consumer.parameter_mappings} == {param.name}
+    (mapping,) = consumer.parameter_mappings
+    assert mapping.target_parameter == param.name
+    assert mapping.data_source_id == "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01"
 
 
 def test_producer_output_publishes_what_consumer_reads(parse_fixture):
@@ -59,7 +61,11 @@ def test_producer_output_publishes_what_consumer_reads(parse_fixture):
     consumer = parse_fixture(MAIN)
     read = next(e for e in consumer.edges
                 if e.from_node == "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01")
-    assert {m.source for m in read.column_map} <= {c.name for c in out.columns}
+    assert {m.source for m in read.column_map} == {c.name for c in out.columns}
+
+    # Task 3 resolves a calc-view source by the last resourceUri segment.
+    (src,) = [d for d in consumer.data_sources if d.kind is DataSourceKind.CALC_VIEW]
+    assert src.resource_uri.rsplit("/", 1)[-1] == producer.view.id
 
 
 def test_cycle_views_read_each_other(parse_fixture):

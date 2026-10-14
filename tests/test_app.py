@@ -2,7 +2,7 @@ import sqlite3
 
 import pytest
 from fastapi import Depends, FastAPI
-from fastapi.testclient import TestClient
+from helpers import local_client
 
 import app.cli as cli
 from app.ir.store import Store
@@ -11,12 +11,12 @@ from app.web.deps import get_existing_store, get_store
 
 
 def test_health_endpoint():
-    client = TestClient(create_app())
+    client = local_client(create_app())
     assert client.get("/health").json() == {"status": "ok"}
 
 
 def test_index_renders():
-    response = TestClient(create_app()).get("/")
+    response = local_client(create_app()).get("/")
     assert response.status_code == 200
     assert "CalcView Migrator" in response.text
 
@@ -65,8 +65,8 @@ def test_create_app_with_db_serves_health_without_creating_db(tmp_path):
     db = tmp_path / "p.db"
     app = create_app(db)
     assert app.state.db_path == db.resolve()
-    assert TestClient(app).get("/health").json() == {"status": "ok"}
-    assert TestClient(app).get("/").status_code == 200
+    assert local_client(app).get("/health").json() == {"status": "ok"}
+    assert local_client(app).get("/").status_code == 200
     assert not db.exists()
 
 
@@ -90,7 +90,7 @@ def test_get_store_opens_per_request_and_closes(tmp_path):
         opened.append(store)
         return {"project": store.get_project()}
 
-    client = TestClient(app)
+    client = local_client(app)
     assert client.get("/probe").json() == {"project": None}
     assert client.get("/probe").status_code == 200
     assert len(opened) == 2 and opened[0] is not opened[1]
@@ -108,7 +108,7 @@ def test_get_existing_store_yields_none_and_never_creates_db(tmp_path):
     def probe(store: Store | None = Depends(get_existing_store)):
         return {"store": store is not None, "project": store.get_project() if store else None}
 
-    client = TestClient(app)
+    client = local_client(app)
     assert client.get("/probe").json() == {"store": False, "project": None}
     assert not db.exists()
     Store(db).close()

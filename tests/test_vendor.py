@@ -1,7 +1,7 @@
 import re
 
 import pytest
-from fastapi.testclient import TestClient
+from helpers import local_client
 
 from app.main import WEB_DIR, create_app
 
@@ -15,7 +15,7 @@ ANY_URL = re.compile(r"https?://", re.IGNORECASE)
 @pytest.mark.parametrize("name", VENDORED)
 def test_vendored_file_is_present_and_served_locally(name):
     assert (VENDOR_DIR / name).stat().st_size > 1000
-    response = TestClient(create_app()).get(f"/static/vendor/{name}")
+    response = local_client(create_app()).get(f"/static/vendor/{name}")
     assert response.status_code == 200
 
 
@@ -49,10 +49,10 @@ def test_every_script_in_every_template_is_local():
 
 
 def test_first_party_js_is_served():
-    response = TestClient(create_app()).get("/static/app/viewgraph.js")
+    response = local_client(create_app()).get("/static/app/viewgraph.js")
     assert response.status_code == 200
 
 
 @pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
 def test_cdn_backed_api_docs_are_disabled(path):
-    assert TestClient(create_app()).get(path).status_code == 404
+    assert local_client(create_app()).get(path).status_code == 404

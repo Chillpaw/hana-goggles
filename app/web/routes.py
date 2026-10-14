@@ -6,8 +6,8 @@ GET pages use `get_existing_store`, so browsing never creates a database file.
 
 URLs: a view page is `/views/{view_id}` with the id percent-encoded (ids may contain `/`,
 `.`, `:`; the route takes a `path` parameter so an encoded `/` still matches). The node
-panel is `/node?view=<view id>&node=<node name>`: query parameters, so a view id with
-slashes can never be confused with a node name.
+panel is `/node?view=<view id>&node=<node id>`: query parameters, so a view id with
+slashes can never be confused with a node id.
 """
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
 from pydantic import ValidationError
 
+from app.enrich.deps import _sort_key as estate_preference
 from app.enrich.deps import resolve_dependencies
 from app.generators.describe import NodeDescription, describe_node, describe_view, render_expression
 from app.generators.lineage import MISSING_TYPE, view_elements
@@ -47,11 +48,13 @@ def view_url(view_id: str) -> str:
     return "/views/" + quote(view_id, safe="")
 
 
-def node_url(view_id: str, node_name: str) -> str:
-    return "/node?" + urlencode({"view": view_id, "node": node_name}, quote_via=quote)
+def node_url(view_id: str, node_id: str) -> str:
+    return "/node?" + urlencode({"view": view_id, "node": node_id}, quote_via=quote)
 
 
-_NOT_PARSED = re.compile(r"`(.*?)` \(not parsed\)", re.DOTALL)
+# Greedy: from the first backtick to the LAST "` (not parsed)", so raw text that itself
+# contains backticks stays inside one code span (a sentence holds one expression).
+_NOT_PARSED = re.compile(r"`(.*)` \(not parsed\)", re.DOTALL)
 
 
 def prose(text: str) -> Markup:
@@ -101,7 +104,12 @@ def _load(store: Store, project: Project) -> Loaded:
     except ValidationError as exc:
         raise OutdatedDataError(project) from exc
     estate = resolve_dependencies(results)  # sets resolved_view_id on these copies
-    return Loaded(project, summaries, {r.view.id: r for r in results}, estate)
+    # One result per id, the copy the estate uses (the store's primary key makes repeats
+    # impossible today; this keeps page and estate agreeing if that ever changes).
+    by_id: dict[str, ParseResult] = {}
+    for result in sorted(results, key=estate_preference):
+        by_id.setdefault(result.view.id, result)
+    return Loaded(project, summaries, by_id, estate)
 
 
 def register_error_handlers(app: FastAPI) -> None:
@@ -150,7 +158,12 @@ async def post_import(request: Request):
             request, "index.html",
             {"error": f"{folder or '(empty)'} is not a folder on this computer.", "folder": folder},
             status_code=400)
-    await run_in_threadpool(_import, request.app.state.db_path, Path(folder))
+    try:
+        await run_in_threadpool(_import, request.app.state.db_path, Path(folder))
+    except OSError as exc:  # unreadable folder, db path not writable, disk full, ...
+        return templates.TemplateResponse(
+            request, "index.html",
+            {"error": f"Import failed: {exc}", "folder": folder}, status_code=400)
     return RedirectResponse("/views", status_code=303)
 
 
@@ -277,7 +290,7 @@ def _graph_elements(result: ParseResult, descriptions: list[NodeDescription]) ->
         data = element["data"]
         if "source" in data or data["node_type"] == MISSING_TYPE:
             continue
-        data["panel_url"] = node_url(result.view.id, data["label"])
+        data["panel_url"] = node_url(result.view.id, data["id"])
         if data["resolved_view"]:
             data["view_url"] = view_url(data["resolved_view"])
     return elements
@@ -295,8 +308,8 @@ def node_panel(request: Request, view: str, node: str,
     result = loaded.results.get(view)
     found: Node | None = None
     for candidate in result.nodes if result else []:
-        if candidate.name == node:
-            found = candidate  # a repeated name: the last definition wins, as in the parser
+        if candidate.id == node:
+            found = candidate  # a repeated id: the last definition wins, as in the parser
     if result is None or found is None:
         return _not_found(request, f"There is no step {node} in view {view}.", fragment=True)
     resolved = next((ds.resolved_view_id for ds in result.data_sources if ds.id == found.id), None)
@@ -310,6 +323,7 @@ def node_panel(request: Request, view: str, node: str,
 
 def _not_found(request: Request, message: str, fragment: bool = False) -> Response:
     if fragment:
-        return HTMLResponse(f'<p class="error">{escape(message)}</p>', status_code=404)
+        # 200, not 404: htmx swaps only 2xx responses, and the panel must say what went wrong.
+        return HTMLResponse(f'<p class="callout bad">{escape(message)}</p>', status_code=200)
     return templates.TemplateResponse(request, "error.html", {
         "title": "Not found", "message": message, "project": None}, status_code=404)

@@ -44,3 +44,11 @@
   <span class="badge type-{{ node.node_type }}">{{ node.node_type|replace("_", " ") }}</span>
   {%- if not node.understood %} <span class="badge failed" title="Not fully understood by the parser">not understood</span>{% endif %}
 {%- endmacro %}
+
+{% macro view_links(ids, sep=", ") -%}
+  {%- for v in ids %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %}{{ sep|safe }}{% endif %}{% endfor -%}
+{%- endmacro %}
+
+{% macro cycle_callout(members, lead) %}
+  <p class="callout bad"><strong>Cycle:</strong> {{ lead }} {{ view_links(members, " &harr; ") }}</p>
+{% endmacro %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_macros.html" import cycle_callout %}
 {% block title %}Views · CalcView Migrator{% endblock %}
 {% block content %}
   <h1>Views <span class="muted">({{ rows|length }}{% if rows|length != total %} of {{ total }}{% endif %})</span></h1>
@@ -13,9 +14,7 @@
   </div>
 
   {% for members in estate.cycles %}
-    <p class="callout bad"><strong>Cycle:</strong> these views read from each other, so no
-      deploy order works for them:
-      {% for v in members %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %} &harr; {% endif %}{% endfor %}</p>
+    {{ cycle_callout(members, "these views read from each other, so no deploy order works for them:") }}
   {% endfor %}
   {% if estate.warnings %}
     <details class="callout">

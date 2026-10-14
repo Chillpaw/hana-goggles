@@ -206,8 +206,11 @@ class Store:
         row = self.conn.execute("SELECT result_json FROM view WHERE id = ?", (view_id,)).fetchone()
         return row["result_json"] if row else None
 
+    # Rows are fetched in full before validation: a validation error raised mid-iteration
+    # would leave the statement unfinalized, and its read lock would outlive close().
+
     def list_views(self) -> list[ViewSummary]:
-        rows = self.conn.execute(f"SELECT {_SUMMARY_COLUMNS} FROM view ORDER BY id")
+        rows = self.conn.execute(f"SELECT {_SUMMARY_COLUMNS} FROM view ORDER BY id").fetchall()
         return [ViewSummary(**dict(r)) for r in rows]
 
     def load_result(self, view_id: str) -> ParseResult | None:
@@ -215,7 +218,7 @@ class Store:
         return ParseResult.model_validate_json(row["result_json"]) if row else None
 
     def load_all_results(self) -> list[ParseResult]:
-        rows = self.conn.execute("SELECT result_json FROM view ORDER BY id")
+        rows = self.conn.execute("SELECT result_json FROM view ORDER BY id").fetchall()
         return [ParseResult.model_validate_json(r["result_json"]) for r in rows]
 
     def node_hashes(self, view_id: str) -> dict[str, str]:

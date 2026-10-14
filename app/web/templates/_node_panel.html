@@ -6,7 +6,7 @@
     <ul>{% for line in description.details %}<li>{{ line|prose }}</li>{% endfor %}</ul>
   {% endif %}
   {% if resolved_view %}
-    <p>Defined in this project: <a href="{{ view_url(resolved_view) }}">open {{ resolved_view }}</a></p>
+    <p><a href="{{ view_url(resolved_view) }}">Open {{ resolved_view }}</a></p>
   {% endif %}
   <h3>Columns</h3>
   {{ columns_table(node) }}

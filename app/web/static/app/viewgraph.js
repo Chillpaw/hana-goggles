@@ -174,7 +174,7 @@
         window.location.assign(url);
       }
     });
-    window.addEventListener("resize", function () { cy.resize(); cy.fit(undefined, 20); });
+    window.addEventListener("resize", function () { cy.resize(); });
   }
 
   if (document.readyState === "loading") {

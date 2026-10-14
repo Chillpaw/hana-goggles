@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.web.routes import register_error_handlers, router
+from app.web.security import add_security_middleware
 
 HOST = "127.0.0.1"
 WEB_DIR = Path(__file__).parent / "web"
@@ -27,6 +28,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     app.state.db_path = Path(db_path if db_path is not None else default_db_path()).resolve()
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
     register_error_handlers(app)
+    add_security_middleware(app)
 
     @app.get("/health")
     def health():

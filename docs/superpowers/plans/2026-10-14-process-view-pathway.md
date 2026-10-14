@@ -259,8 +259,8 @@ Rules (wording is tested exactly — keep it stable):
   - `GET /` → no project in the store: import form (folder path text field) and a short how-to; otherwise redirect 303 to `/views`.
   - `POST /import` (form field `folder`) → runs `import_folder`; on a non-directory path re-renders the form with an error (400); else 303 to `/views`. A "Re-import" button on `/views` posts the stored `source_folder`.
   - `GET /views` → table: name (link), package, view type, data category, nodes, coverage %, parse status, warnings, depends on (internal count), used by (internal count). Server-side `?sort=<column>` and `?q=<substring>`.
-  - `GET /views/{view_id}` → tabs (plain links with `?tab=`; no JS needed): **Graph** (canvas + side panel), **Steps** (ordered plain-English list), **Columns** (per node), **Warnings**, **Raw XML** (per node `raw`, escaped, in `<pre>`), **Notes** (Task 8). Header: view facts and links to upstream/downstream views. 404 for an unknown id.
-  - `GET /views/{view_id}/nodes/{node_name}` → `_node_panel.html` fragment (headline, details, columns, warnings for that node, raw XML) for htmx.
+  - `GET /views/{view_id:path}` (id percent-encoded; ids may contain `/`, `.`, `:`) → tabs (plain links with `?tab=`; no JS needed): **Graph** (canvas + side panel), **Steps** (ordered plain-English list), **Columns** (per node), **Warnings**, **Raw XML** (per node `raw`, escaped, in `<pre>`), **Notes** (Task 8). Header: view facts and links to upstream/downstream views. 404 for an unknown id.
+  - `GET /node?view=<view id>&node=<node id>` → `_node_panel.html` fragment (headline, details, columns, warnings for that node, raw XML) for htmx. Errors come back as a visible fragment with status 200 so htmx swaps them in.
 - `viewgraph.js`: reads the elements JSON from `<script type="application/json" id="graph-data">`, builds Cytoscape with `cytoscape-dagre`, `rankDir: 'BT'` (output at the top, like the HANA modeller — record as a ruling), colours by `node_type`, dashed red border for `understood == false`, shows a warning count badge in the label. Tap a node → `htmx.ajax('GET', <panel url>, '#node-panel')`. Double-tap a datasource whose calc view resolves internally → navigate to that view. Fit to screen on load. No external URLs.
 - [ ] Tests (TestClient with a tmp db imported from `fixtures/synthetic/graphical`): `/` redirects after import and shows the form before; `/views` lists both views with coverage and dependency counts; sort/filter; view page 200 and contains the embedded JSON with 8 nodes and 7 edges for the consumer; Steps tab shows the Task 6 sentences in order; node panel fragment; unknown view 404; HTML-escaping of a hostile view id (inline XML fixture in tmp with `id="&lt;script&gt;"`); remote-URL guard covers app JS.
 - [ ] Commit: `feat(m5): views list and view graph with node panel`.
@@ -269,8 +269,8 @@ Rules (wording is tested exactly — keep it stable):
 
 **Files:** `app/web/routes.py`, `view.html` Notes tab, `_node_panel.html`, `tests/test_web_notes.py`.
 
-- [ ] Notes tab: purpose, owner, sign-off status (draft/reviewed/approved), notes; `POST /views/{view_id}/notes` saves (clears stale) and redirects back to the tab. A stale annotation shows a visible "Stale: <reason>" badge on the tab and in the views list.
-- [ ] Node panel: a small notes form per node (`POST /views/{view_id}/nodes/{node_name}/notes`, htmx swap of the panel).
+- [ ] Notes tab: purpose, owner, sign-off status (draft/reviewed/approved), notes; `POST /notes?view=<view id>` saves (clears stale) and redirects back to the tab. A stale annotation shows a visible "Stale: <reason>" badge on the tab and in the views list.
+- [ ] Node panel: a small notes form per node (`POST /node/notes?view=<view id>&node=<node id>`, htmx swap of the panel).
 - [ ] Views list gains a sign-off column.
 - [ ] Tests: save and reload; invalid status rejected (422/400); re-import of a changed fixture shows the stale badge; saving clears it; node note round trip.
 - [ ] Commit: `feat(m5): view and node notes with sign-off and stale badges`.
@@ -307,7 +307,7 @@ Never printed: file names, paths, ids, names, column names, descriptions, litera
 
 - `estate_elements(estate, summaries, annotations) -> list[dict]`: view nodes `{id, label, kind: "view", view_type, data_category, parse_status, coverage_pct, signoff, node_count, warning_count, in_cycle}`; leaf nodes `{id, label, kind: leaf kind}`; edges producer → consumer `{id, source, target, internal}`. Deterministic.
 - `estate_mermaid(estate, include_leaves=True) -> str` and `view_mermaid(result) -> str`: `flowchart LR` (`BT` for a view, matching the canvas); node ids sanitised to `n<index>` with a stable mapping; labels quoted with `"` escaped as `#quot;`; leaf sources shaped `[( )]`, views `[ ]`, cycle edges annotated. Golden file for the fixture estate.
-- Routes: `GET /estate` (canvas, colour-by selector: parse status / view type / data category / sign-off; toggle leaf sources; search box; deploy order list; cycle errors shown at the top), `GET /estate.mmd` and `GET /views/{view_id}.mmd` (`text/plain`, `Content-Disposition: attachment`), nav link from every page.
+- Routes: `GET /estate` (canvas, colour-by selector: parse status / view type / data category / sign-off; toggle leaf sources; search box; deploy order list; cycle errors shown at the top), `GET /estate.mmd` and `GET /view.mmd?view=<view id>` (`text/plain`, `Content-Disposition: attachment`), nav link from every page.
 - `estate.js`: dagre `rankDir: 'LR'`; tap a view → highlight its upstream (predecessors) and downstream (successors), dim the rest; double-tap → open the view page; PNG export via `cy.png({full: true, scale: 2})` into a download link (no network). Legend for the current colour mode.
 - [ ] Tests: estate elements for the fixture folder (2 views, 3 leaf tables, 4 edges, 1 internal); cycle folder marks `in_cycle`; Mermaid golden; `.mmd` endpoints return attachments; `/estate` 200 with embedded JSON; remote-URL guard covers `estate.js`.
 - [ ] Commit: `feat(m9a): estate map with PNG and Mermaid export`.

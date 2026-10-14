@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import warnings_table, columns_table, type_badge %}
+{% from "_macros.html" import warnings_table, columns_table, type_badge, view_links, cycle_callout %}
 {% block title %}{{ view.id }} · CalcView Migrator{% endblock %}
 {% block style %}
     .graph-layout { display: flex; gap: 12px; align-items: stretch; }
@@ -42,14 +42,14 @@
     <div><dt>Warnings</dt><dd>{{ result.warnings|length + estate_warnings|length }}</dd></div>
   </dl>
   <div class="deps"><span class="label">Reads views</span>
-    {% for v in reads_from %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">none in this project</span>{% endfor %}
+    {% if reads_from %}{{ view_links(reads_from) }}{% else %}<span class="muted">none in this project</span>{% endif %}
     {% if all_upstream|length > reads_from|length %}<span class="muted">({{ all_upstream|length }} upstream in total:
-      {% for v in all_upstream %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}
+      {{ view_links(all_upstream) }})</span>{% endif %}
   </div>
   <div class="deps"><span class="label">Used by</span>
-    {% for v in read_by %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %}, {% endif %}{% else %}<span class="muted">no view in this project</span>{% endfor %}
+    {% if read_by %}{{ view_links(read_by) }}{% else %}<span class="muted">no view in this project</span>{% endif %}
     {% if all_downstream|length > read_by|length %}<span class="muted">({{ all_downstream|length }} downstream in total:
-      {% for v in all_downstream %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %}, {% endif %}{% endfor %})</span>{% endif %}
+      {{ view_links(all_downstream) }})</span>{% endif %}
   </div>
   {% if leaves %}
   <div class="deps"><span class="label">Reads sources</span>
@@ -60,8 +60,7 @@
   {% endif %}
 
   {% for members in cycles %}
-    <p class="callout bad"><strong>Cycle:</strong> this view is part of a loop of views that read from each other:
-      {% for v in members %}<a href="{{ view_url(v) }}">{{ v }}</a>{% if not loop.last %} &harr; {% endif %}{% endfor %}</p>
+    {{ cycle_callout(members, "this view is part of a loop of views that read from each other:") }}
   {% endfor %}
 
   <nav class="tabs">

@@ -95,13 +95,19 @@ class _Builder:
         column_map: list[ColumnMapItem] = []
         for attr in x.children(x.child(lm, "attributes"), "attribute"):
             name = attr.get("id") or ""
+            self._check_output_column(attr, {"descriptions", "keyMapping"}, node, is_measure=False)
             node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.ATTRIBUTE))
             column_map.extend(_output_mapping(x.child(attr, "keyMapping"), name))
         for measure in x.children(x.child(lm, "baseMeasures"), "measure"):
             name = measure.get("id") or ""
+            self._check_output_column(measure, {"descriptions", "measureMapping"}, node, is_measure=True)
             node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.MEASURE,
                                        aggregation=measure.get("aggregationType")))
             column_map.extend(_output_mapping(x.child(measure, "measureMapping"), name))
+        for el in x.children(x.child(lm, "calculatedAttributes"), "calculatedAttribute"):
+            self._check_output_column(el, {"descriptions", "keyCalculation"}, node, is_measure=False)
+        for el in x.children(x.child(lm, "calculatedMeasures"), "measure"):
+            self._check_output_column(el, {"descriptions", "formula"}, node, is_measure=True)
         node.columns.extend(self._calculated_columns(
             x.child(lm, "calculatedAttributes"), "calculatedAttribute", node, ColumnKind.ATTRIBUTE))
         node.columns.extend(self._calculated_columns(
@@ -122,6 +128,20 @@ class _Builder:
                       el=lm, node_id=node.id)
             return
         self.edges.append(Edge(from_node=top.id, to_node=node.id, column_map=column_map))
+
+    def _check_output_column(self, el: etree._Element, known: set[str], node: Node, *,
+                             is_measure: bool) -> None:
+        name = el.get("id") or ""
+        self._check_children(el, known, node.id)
+        if el.get("hidden") == "true":
+            self.warn("HIDDEN_COLUMN", f"{name} is hidden in the output layer", el=el,
+                      node_id=node.id, severity=Severity.INFO)
+        mt = el.get("measureType")
+        if is_measure and mt is not None and mt != "simple":
+            node.understood = False
+            self.warn("MEASURE_TYPE_DEFERRED",
+                      f"measure {name} has measureType {mt!r}; conversion semantics not modelled yet",
+                      el=el, node_id=node.id)
 
     def _result(self) -> ParseResult:
         return ParseResult(

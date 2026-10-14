@@ -141,3 +141,26 @@ def test_calculated_measure_parameter_usage_is_recorded():
     )
     params = parse_text(text).parameters
     assert [(u.node_id, u.usage) for u in params[0].used_in] == [("NO_WRAPPER/Semantics", ParamUsage.CALCULATION)]
+
+
+def test_unexpected_child_of_output_attribute_is_reported():
+    text = NO_WRAPPER.replace("EXTRA", "").replace("</attribute>", "<unknownThing/></attribute>")
+    assert codes(parse_text(text)) == ["UNKNOWN_ELEMENT"]
+
+
+def test_hidden_output_attribute_is_info_only():
+    text = NO_WRAPPER.replace("EXTRA", "").replace('<attribute id="COL_1">', '<attribute id="COL_1" hidden="true">')
+    result = parse_text(text)
+    assert "HIDDEN_COLUMN" in codes(result)
+    assert result.view.parse_status is ParseStatus.OK
+
+
+def test_non_simple_measure_type_is_deferred():
+    text = NO_WRAPPER.replace("EXTRA", "").replace(
+        "</attributes>",
+        '</attributes><baseMeasures><measure id="AMT_1" aggregationType="sum" measureType="amount">'
+        '<measureMapping columnObjectName="Projection_1" columnName="COL_1"/></measure></baseMeasures>',
+    )
+    result = parse_text(text)
+    assert codes(result) == ["MEASURE_TYPE_DEFERRED"]
+    assert node(result, "Semantics").understood is False

@@ -35,6 +35,23 @@ KNOWN_CALCVIEW_CHILDREN = {
 }
 SPECIAL_JOIN_TYPES = {"referential", "textTable"}
 PARAM_RE = re.compile(r"\$\$(\w+)\$\$")
+OUTPUT_NODE_NAME = "Semantics"
+HANDLED_ROOT_CHILDREN = {
+    "localVariables", "variableMappings", "dataSources", "calculationViews", "calculationView", "logicalModel",
+}
+# Root children that carry no logic: editor metadata and diagram positions.
+IGNORED_ROOT_CHILDREN = {"origin", "descriptions", "metadata", "layout"}
+KNOWN_LOGICAL_MODEL_CHILDREN = {
+    "descriptions", "attributes", "calculatedAttributes", "privateDataFoundation",
+    "baseMeasures", "calculatedMeasures", "restrictedMeasures", "localDimensions",
+}
+# Containers that may appear empty inside deferred blocks without meaning anything.
+EMPTY_CONTAINER_PARTS = {"tableProxies", "joins", "layout", "shapes", "shape", "upperLeftCorner", "rectangleSize"}
+DEFERRED_LOGICAL_MODEL_BLOCKS = {
+    "privateDataFoundation": "PRIVATE_DATA_FOUNDATION_DEFERRED",
+    "restrictedMeasures": "RESTRICTED_MEASURES_DEFERRED",
+    "localDimensions": "LOCAL_DIMENSIONS_DEFERRED",
+}
 
 
 def parse_graphical(root: etree._Element, view: View) -> ParseResult:
@@ -55,13 +72,56 @@ class _Builder:
         self._pending_inputs: list[tuple[Node, etree._Element]] = []
 
     def build(self) -> ParseResult:
+        self._check_children(self.root, HANDLED_ROOT_CHILDREN | IGNORED_ROOT_CHILDREN, None)
         self._parse_parameters()
         self._parse_data_sources()
         self._parse_calculation_views()
         self._resolve_inputs()
+        self._parse_logical_model()
         self._parse_variable_mappings()
         self._record_parameter_usage()
         return self._result()
+
+    def _parse_logical_model(self) -> None:
+        lm = x.child(self.root, "logicalModel")
+        if lm is None:
+            self.warn("MISSING_LOGICAL_MODEL", "no <logicalModel>; the view has no output layer",
+                      severity=Severity.ERROR)
+            return
+        node = Node(id=make_id(self.vid, OUTPUT_NODE_NAME), view_id=self.vid, node_type=NodeType.OUTPUT,
+                    name=OUTPUT_NODE_NAME, raw=x.raw(lm))
+        self._check_children(lm, KNOWN_LOGICAL_MODEL_CHILDREN, node.id)
+
+        column_map: list[ColumnMapItem] = []
+        for attr in x.children(x.child(lm, "attributes"), "attribute"):
+            name = attr.get("id") or ""
+            node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.ATTRIBUTE))
+            column_map.extend(_output_mapping(x.child(attr, "keyMapping"), name))
+        for measure in x.children(x.child(lm, "baseMeasures"), "measure"):
+            name = measure.get("id") or ""
+            node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.MEASURE,
+                                       aggregation=measure.get("aggregationType")))
+            column_map.extend(_output_mapping(x.child(measure, "measureMapping"), name))
+        node.columns.extend(self._calculated_columns(
+            x.child(lm, "calculatedAttributes"), "calculatedAttribute", node, ColumnKind.ATTRIBUTE))
+        node.columns.extend(self._calculated_columns(
+            x.child(lm, "calculatedMeasures"), "measure", node, ColumnKind.MEASURE))
+
+        for tag, code in DEFERRED_LOGICAL_MODEL_BLOCKS.items():
+            block = x.child(lm, tag)
+            if block is not None and _has_content(block):
+                node.understood = False
+                self.warn(code, f"<{tag}> has content that is not modelled yet", el=block, node_id=node.id)
+
+        top_ref = lm.get("id") or ""
+        top = self.nodes.get(top_ref)
+        self.nodes[OUTPUT_NODE_NAME] = node
+        if top is None:
+            node.understood = False
+            self.warn("UNRESOLVED_INPUT", f"logicalModel reads #{top_ref}, which is not in this view",
+                      el=lm, node_id=node.id)
+            return
+        self.edges.append(Edge(from_node=top.id, to_node=node.id, column_map=column_map))
 
     def _result(self) -> ParseResult:
         return ParseResult(
@@ -283,6 +343,17 @@ class _Builder:
             if x.local(c) not in known:
                 self.warn("UNKNOWN_ELEMENT", f"<{x.local(c)}> inside <{x.local(el)}> is not modelled",
                           el=c, node_id=node_id)
+
+
+def _output_mapping(mapping: etree._Element | None, target: str) -> list[ColumnMapItem]:
+    if mapping is None:
+        return []
+    return [ColumnMapItem(target=target, source=mapping.get("columnName"))]
+
+
+def _has_content(el: etree._Element) -> bool:
+    return any(x.local(d) not in EMPTY_CONTAINER_PARTS
+               for d in el.iterdescendants() if isinstance(d.tag, str))
 
 
 def _ref(value: str | None) -> str:

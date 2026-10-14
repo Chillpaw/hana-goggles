@@ -11,13 +11,13 @@ V = "GENERIC_TAX_REPORTING_CUBE"
 def test_calculation_views_become_typed_nodes(parse_fixture):
     result = parse_fixture(MAIN)
     types = {n.name: n.node_type for n in result.nodes if n.node_type is not NodeType.DATASOURCE}
-    expected = {
+    assert types == {
         "Projection_1": NodeType.PROJECTION,
         "Join_1": NodeType.JOIN,
         "Union_1": NodeType.UNION,
         "Aggregation_1": NodeType.AGGREGATION,
+        "Semantics": NodeType.OUTPUT,
     }
-    assert expected.items() <= types.items()  # Task 8 tightens this to an exact match
 
 
 def test_inputs_become_edges(parse_fixture):

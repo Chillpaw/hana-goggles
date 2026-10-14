@@ -9,8 +9,8 @@ import heapq
 from dataclasses import dataclass, field
 
 from app.ir.models import (
-    ColumnKind, ColumnMapItem, DataSource, DataSourceKind, DataCategory, Estate, ExpressionLang, Expression,
-    ExprNode, Node, NodeType, ParseResult,
+    ColumnKind, ColumnMapItem, DataCategory, DataSource, DataSourceKind, Edge, Estate, Expression,
+    ExpressionLang, ExprNode, Node, NodeType, ParseResult,
 )
 
 NOT_UNDERSTOOD = "Not fully understood by the parser: see warnings and raw XML."
@@ -73,9 +73,7 @@ def render_expression(expr: Expression | None) -> str:
 def _render(node: ExprNode) -> tuple[str, int]:
     """Return (text, precedence of the text's outermost operator)."""
     value = node.value or ""
-    if node.kind == "column":
-        return value, _ATOM
-    if node.kind == "number":
+    if node.kind in ("column", "number"):
         return value, _ATOM
     if node.kind == "string":
         return "'" + value.replace("'", "''") + "'", _ATOM
@@ -119,8 +117,10 @@ def _render_binary(op: str, args: list[ExprNode]) -> tuple[str, int]:
     for i, arg in enumerate(args):
         text, child = _render(arg)
         # Looser operands are grouped. At equal strength only the first operand may stay bare
-        # (the AST is a left fold), and comparisons never chain.
-        needs = child < prec or (child == prec and (i > 0 or prec == _CMP))
+        # (the AST is a left fold), and comparisons never chain. An `and` inside `or` is grouped
+        # too, for readers who do not know the precedence: `A or (B and C)`.
+        needs = (child < prec or (child == prec and (i > 0 or prec == _CMP))
+                 or (op == "or" and arg.kind == "binary" and arg.value == "and"))
         parts.append(_group((text, child), needs))
     return f" {op} ".join(parts), prec
 
@@ -134,11 +134,16 @@ def _group(rendered: tuple[str, int], needed: bool) -> str:
 def describe_view(result: ParseResult, estate: Estate | None = None) -> list[NodeDescription]:
     """Every node in data-flow order: topological over the view's edges, ties by node order,
     the output node last. A cycle or a dangling edge never stops the walk."""
-    return [describe_node(result, n, estate) for n in _flow_order(result)]
+    ctx = _Context(result)
+    return [_describe(ctx, n, estate) for n in _flow_order(result)]
 
 
 def describe_node(result: ParseResult, node: Node, estate: Estate | None = None) -> NodeDescription:
-    ctx = _Context(result)
+    return _describe(_Context(result), node, estate)
+
+
+def _describe(ctx: _Context, node: Node, estate: Estate | None) -> NodeDescription:
+    result = ctx.result
     details: list[str] = []
     details.extend(f"Keeps rows where {render_expression(f.expression)}." for f in node.filters)
     details.extend(f"Adds {c.name} = {render_expression(c.expression)}."
@@ -148,7 +153,7 @@ def describe_node(result: ParseResult, node: Node, estate: Estate | None = None)
     if t is NodeType.DATASOURCE:
         headline = _datasource(result, node, estate, details)
     elif t is NodeType.PROJECTION:
-        headline = f"Takes {len(_plain_columns(node))} columns from {ctx.input_list(node)}."
+        headline = f"Takes {_count(len(_plain_columns(node)), 'column')} from {ctx.input_list(node)}."
     elif t is NodeType.JOIN:
         headline = _join(ctx, node, details)
     elif t is NodeType.UNION:
@@ -160,14 +165,15 @@ def describe_node(result: ParseResult, node: Node, estate: Estate | None = None)
     elif t is NodeType.OUTPUT:
         attributes = sum(1 for c in node.columns if c.kind is ColumnKind.ATTRIBUTE)
         measures = sum(1 for c in node.columns if c.kind is ColumnKind.MEASURE)
-        headline = f"Publishes {attributes} attributes and {measures} measures as the view's output."
+        headline = (f"Publishes {_count(attributes, 'attribute')} and {_count(measures, 'measure')} "
+                    "as the view's output.")
         if result.view.data_category is DataCategory.CUBE:
             details.append(CUBE_DETAIL)
     elif t is NodeType.SCRIPT_STATEMENT:
         headline = "Runs a SQL script statement."
     else:  # opaque, or a node type added later without a template
         inputs = ctx.inputs(node)
-        reading = f", reading {', '.join(inputs)}" if inputs else ""
+        reading = f", reading {_and_list(inputs)}" if inputs else ""
         headline = f"Does something the parser does not recognise{reading}."
 
     if not node.understood or t in (NodeType.OPAQUE, NodeType.SCRIPT_STATEMENT):
@@ -187,14 +193,25 @@ class _Context:
             return MISSING_INPUT
         return self.names.get(node_id) or node_id.rpartition("/")[2]
 
-    def incoming(self, node: Node):
+    def incoming(self, node: Node) -> list[Edge]:
         return [e for e in self.result.edges if e.to_node == node.id]
 
     def inputs(self, node: Node) -> list[str]:
         return [self.name(e.from_node) for e in self.incoming(node)]
 
     def input_list(self, node: Node) -> str:
-        return ", ".join(self.inputs(node)) or NO_INPUT
+        return _and_list(self.inputs(node)) or NO_INPUT
+
+
+def _count(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
+def _and_list(names: list[str]) -> str:
+    """Node names in prose: "A", "A and B", "A, B and C"."""
+    if len(names) <= 1:
+        return "".join(names)
+    return f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def _plain_columns(node: Node):
@@ -232,8 +249,8 @@ def _join(ctx: _Context, node: Node, details: list[str]) -> str:
     spec = node.join
     inputs = ctx.inputs(node)
     fallback = inputs + [MISSING_INPUT] * (2 - len(inputs))
-    if spec is None:
-        return f"Join (unknown) of {fallback[0]} and {fallback[1]}."
+    if spec is None:  # list every input: a join without a spec may have more than two
+        return f"Join (unknown) of {_and_list(fallback)}."
     phrase = JOIN_PHRASES.get(spec.join_type, f"Join ({spec.join_type})")
     left = ctx.name(spec.left_node) if spec.left_node else fallback[0]
     right = ctx.name(spec.right_node) if spec.right_node else fallback[1]

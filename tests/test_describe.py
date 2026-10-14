@@ -7,9 +7,10 @@ from app.enrich.deps import resolve_dependencies
 from app.generators.describe import NodeDescription, describe_node, describe_view, render_expression
 from app.ir.models import (
     Column, ColumnKind, ColumnMapItem, DataCategory, DataSource, DataSourceKind, Edge, Estate,
-    ExpressionLang, Expression, ExprNode, Filter, JoinCondition, JoinSpec, Node, NodeType, ParseResult,
+    Expression, ExpressionLang, ExprNode, Filter, JoinCondition, JoinSpec, Node, NodeType, ParseResult,
     ParseStatus, View, ViewDependency, ViewType,
 )
+from app.parsers.expressions import parse_expression
 
 NOT_UNDERSTOOD = "Not fully understood by the parser: see warnings and raw XML."
 CUBE_DETAIL = "CUBE: totals are computed at query time for whatever columns the consumer asks for."
@@ -130,6 +131,10 @@ def test_render_basic(ast, expected):
     (bi("-", col("A"), bi("-", col("B"), col("C"))), "A - (B - C)"),
     (bi("/", col("A"), bi("*", col("B"), col("C"))), "A / (B * C)"),
     (bi("and", col("A"), bi("and", col("B"), col("C"))), "A and (B and C)"),
+    # an `and` inside `or` is grouped for readability, though precedence would not need it
+    (bi("or", col("A"), bi("and", col("B"), col("C"))), "A or (B and C)"),
+    (bi("or", bi("and", col("A"), col("B")), col("C")), "(A and B) or C"),
+    (bi("and", bi("or", col("A"), col("B")), bi("or", col("C"), col("D"))), "(A or B) and (C or D)"),
     # comparisons do not chain
     (bi("=", bi("=", col("A"), col("B")), col("C")), "(A = B) = C"),
     # unary minus
@@ -156,6 +161,19 @@ def test_render_basic(ast, expected):
 ])
 def test_render_parenthesisation(ast, expected):
     assert render_expression(ce(ast)) == expected
+
+
+@pytest.mark.parametrize("text, expected", [
+    ('-"A" * "B"', "-A * B"),
+    ('"A" / "B" / "C"', "A / B / C"),
+    ('"A" - ("B" - "C")', "A - (B - C)"),
+    ('"A" = 1 or "B" = 2 and "C" = 3', "A = 1 or (B = 2 and C = 3)"),
+    ('("A" = 1 or "B" = 2) and not "C" = 3', "(A = 1 or B = 2) and not (C = 3)"),
+    ('-("A" + "B") * $$IP_RATE$$', "-(A + B) * input parameter IP_RATE"),
+    ("if(\"A\" > 0, \"A\", 0) + 1", "(if A > 0 then A else 0) + 1"),
+])
+def test_render_real_parser_output(text, expected):
+    assert render_expression(ce(parse_expression(text), text)) == expected
 
 
 def test_render_unparsed_shows_raw_text():
@@ -197,7 +215,7 @@ def test_fixture_join(cube):
 
 def test_fixture_union(cube):
     d = describe_node(cube, node(cube, "Union_1"))
-    assert d.headline == "Stacks rows from Join_1, TABLE_B."
+    assert d.headline == "Stacks rows from Join_1 and TABLE_B."
     assert d.details == [
         "COL_5 is 'SRC_A' for rows from Join_1.",
         "CC_1 is empty (null) for rows from TABLE_B.",
@@ -264,7 +282,7 @@ def test_describe_view_order_and_full_text(cube):
 def test_bad_expression_not_parsed(parse_fixture):
     result = parse_fixture("malformed/bad_expression.calculationview")
     d = describe_node(result, node(result, "Projection_1"))
-    assert d.headline == "Takes 1 columns from TABLE_A."
+    assert d.headline == "Takes 1 column from TABLE_A."
     assert d.details == ["Adds CC_1 = `if(\"COL_1\" = 'X', 1` (not parsed).", NOT_UNDERSTOOD]
 
 
@@ -362,6 +380,12 @@ def test_special_join_detail(join_type):
     assert join_desc(join_type, special=True).details == [SPECIAL]
 
 
+def test_join_without_spec_lists_every_input():
+    nodes = [*JOIN_INPUTS, mk_node("M", NodeType.PROJECTION), mk_node("J", NodeType.JOIN)]
+    d = describe_one("J", nodes, edges=[edge("L", "J"), edge("R", "J"), edge("M", "J")])
+    assert d.headline == "Join (unknown) of L, R and M."
+
+
 def test_join_without_spec_falls_back_to_inputs():
     d = describe_one("J", [*JOIN_INPUTS, mk_node("J", NodeType.JOIN)], edges=[edge("L", "J"), edge("R", "J")])
     assert d.headline == "Join (unknown) of L and R."
@@ -378,7 +402,7 @@ def test_union_constants_and_null():
                         ColumnMapItem(target="COL_6", constant="it's")]),
     ]
     d = describe_one("U", nodes, edges)
-    assert d.headline == "Stacks rows from A, B."
+    assert d.headline == "Stacks rows from A and B."
     assert d.details == [
         "COL_5 is 'SRC_A' for rows from A.",
         "CC_1 is empty (null) for rows from B.",
@@ -389,7 +413,7 @@ def test_union_constants_and_null():
 def test_union_three_inputs():
     nodes = [mk_node(n, NodeType.PROJECTION) for n in ("A", "B", "C")] + [mk_node("U", NodeType.UNION)]
     d = describe_one("U", nodes, [edge("A", "U"), edge("B", "U"), edge("C", "U")])
-    assert d.headline == "Stacks rows from A, B, C."
+    assert d.headline == "Stacks rows from A, B and C."
 
 
 # ---------------------------------------------------------------- aggregations
@@ -449,13 +473,13 @@ def test_projection_counts_mapped_not_calculated_columns():
     d = describe_one("P", [mk_node("A", NodeType.DATASOURCE),
                            mk_node("P", NodeType.PROJECTION, [attr("COL_1"), attr("CC_1", ce(num("1")))])],
                      [edge("A", "P")])
-    assert d.headline == "Takes 1 columns from A."
+    assert d.headline == "Takes 1 column from A."
     assert d.details == ["Adds CC_1 = 1."]
 
 
 def test_projection_without_input():
     d = describe_one("P", [mk_node("P", NodeType.PROJECTION, [attr("COL_1")], understood=False)])
-    assert d.headline == "Takes 1 columns from (no input)."
+    assert d.headline == "Takes 1 column from (no input)."
     assert d.details == [NOT_UNDERSTOOD]
 
 
@@ -468,7 +492,7 @@ def test_rank():
 def test_output_dimension_has_no_cube_detail():
     d = describe_one("Semantics", [mk_node("Semantics", NodeType.OUTPUT, [attr("COL_1"), measure("AMT_1")])],
                      category=DataCategory.DIMENSION)
-    assert d.headline == "Publishes 1 attributes and 1 measures as the view's output."
+    assert d.headline == "Publishes 1 attribute and 1 measure as the view's output."
     assert d.details == []
 
 
@@ -476,6 +500,28 @@ def test_script_statement():
     d = describe_one("S", [mk_node("S", NodeType.SCRIPT_STATEMENT, understood=False)])
     assert d.headline == "Runs a SQL script statement."
     assert d.details == [NOT_UNDERSTOOD]
+
+
+def test_opaque_with_two_inputs():
+    nodes = [mk_node("A", NodeType.PROJECTION), mk_node("B", NodeType.PROJECTION),
+             mk_node("O", NodeType.OPAQUE, understood=False)]
+    d = describe_one("O", nodes, [edge("A", "O"), edge("B", "O")])
+    assert d.headline == "Does something the parser does not recognise, reading A and B."
+
+
+@pytest.mark.parametrize("columns, headline", [
+    ([], "Publishes 0 attributes and 0 measures as the view's output."),
+    ([attr("COL_1"), attr("COL_2"), measure("AMT_1")], "Publishes 2 attributes and 1 measure as the view's output."),
+    ([attr("COL_1"), measure("AMT_1"), measure("AMT_2")], "Publishes 1 attribute and 2 measures as the view's output."),
+])
+def test_output_plurals(columns, headline):
+    d = describe_one("Semantics", [mk_node("Semantics", NodeType.OUTPUT, columns)])
+    assert d.headline == headline
+
+
+def test_projection_plurals():
+    d = describe_one("P", [mk_node("A", NodeType.DATASOURCE), mk_node("P", NodeType.PROJECTION)], [edge("A", "P")])
+    assert d.headline == "Takes 0 columns from A."
 
 
 def test_opaque_without_input():

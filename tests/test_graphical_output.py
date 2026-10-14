@@ -164,3 +164,45 @@ def test_non_simple_measure_type_is_deferred():
     result = parse_text(text)
     assert codes(result) == ["MEASURE_TYPE_DEFERRED"]
     assert node(result, "Semantics").understood is False
+
+
+def _probe(old: str, new: str):
+    return parse_text(NO_WRAPPER.replace("EXTRA", "").replace(old, new))
+
+
+def test_unknown_child_of_view_attribute_is_reported_and_node_not_understood():
+    result = _probe('<viewAttribute id="COL_1"/>',
+                    '<viewAttribute id="COL_1"><filter xsi:type="AccessControl:SingleValueFilter" '
+                    'operator="EQ" value="X"/></viewAttribute>')
+    assert codes(result) == ["UNKNOWN_ELEMENT"]
+    assert node(result, "Projection_1").understood is False
+    assert result.view.parse_status is ParseStatus.PARTIAL
+    assert result.view.coverage_pct < 100
+
+
+def test_unknown_child_of_input_is_reported_and_node_not_understood():
+    result = _probe("</input>", "<surprise/></input>")
+    assert codes(result) == ["UNKNOWN_ELEMENT"]
+    assert node(result, "Projection_1").understood is False
+
+
+@pytest.mark.parametrize("view_type", ["ProjectionView", "AggregationView"])
+def test_unknown_node_level_child_marks_node_not_understood(view_type):
+    result = parse_text(
+        NO_WRAPPER.replace("EXTRA", "").replace("ProjectionView", view_type)
+        .replace("</viewAttributes>", "</viewAttributes><restrictedViewAttributes/>"))
+    assert codes(result) == ["UNKNOWN_ELEMENT"]
+    assert node(result, "Projection_1").understood is False
+
+
+@pytest.mark.parametrize("old,new", [
+    ('<DataSource id="TABLE_A" type="DATA_BASE_TABLE">', '<DataSource id="TABLE_A" type="DATA_BASE_TABLE"><oddity/>'),
+    ('<dataSources>', '<localVariables><variable id="V_1"><oddity/></variable></localVariables><dataSources>'),
+    ('<dataSources>', '<localVariables><variable id="V_1"><variableProperties><oddity/></variableProperties>'
+                      '</variable></localVariables><dataSources>'),
+    ('<viewAttributes>', '<calculatedViewAttributes><calculatedViewAttribute id="CC_1" datatype="INTEGER">'
+                         '<oddity/><formula>1</formula></calculatedViewAttribute></calculatedViewAttributes><viewAttributes>'),
+])
+def test_unknown_children_of_other_elements_are_reported(old, new):
+    result = _probe(old, new)
+    assert codes(result) == ["UNKNOWN_ELEMENT"]

@@ -90,7 +90,7 @@ class _Builder:
             return
         node = Node(id=make_id(self.vid, OUTPUT_NODE_NAME), view_id=self.vid, node_type=NodeType.OUTPUT,
                     name=OUTPUT_NODE_NAME, raw=x.raw(lm))
-        self._check_children(lm, KNOWN_LOGICAL_MODEL_CHILDREN, node.id)
+        self._check_children(lm, KNOWN_LOGICAL_MODEL_CHILDREN, node)
 
         column_map: list[ColumnMapItem] = []
         for attr in x.children(x.child(lm, "attributes"), "attribute"):
@@ -132,7 +132,7 @@ class _Builder:
     def _check_output_column(self, el: etree._Element, known: set[str], node: Node, *,
                              is_measure: bool) -> None:
         name = el.get("id") or ""
-        self._check_children(el, known, node.id)
+        self._check_children(el, known, node)
         if el.get("hidden") == "true":
             self.warn("HIDDEN_COLUMN", f"{name} is hidden in the output layer", el=el,
                       node_id=node.id, severity=Severity.INFO)
@@ -165,6 +165,9 @@ class _Builder:
         for var in x.children(x.child(self.root, "localVariables"), "variable"):
             name = var.get("id") or ""
             props = x.child(var, "variableProperties")
+            self._check_children(var, {"descriptions", "variableProperties"}, None)
+            if props is not None:
+                self._check_children(props, {"valueDomain", "selection", "defaultRange"}, None)
             attrs = props.attrib if props is not None else {}
             default = attrs.get("defaultValue")
             if default is None:
@@ -191,6 +194,9 @@ class _Builder:
                 self.warn("UNKNOWN_DATASOURCE_TYPE", f"data source {ds_id!r} has type {ds.get('type')!r}",
                           el=ds, node_id=node_id)
             column_object = x.child(ds, "columnObject")
+            ds_node = Node(id=node_id, view_id=self.vid, node_type=NodeType.DATASOURCE,
+                           name=ds_id, raw=x.raw(ds), understood=kind is not DataSourceKind.UNKNOWN)
+            self._check_children(ds, {"viewAttributes", "columnObject", "resourceUri"}, ds_node)
             uri = x.text(x.child(ds, "resourceUri"))
             if column_object is not None:
                 schema_name, name = column_object.get("schemaName"), column_object.get("columnObjectName") or ds_id
@@ -198,8 +204,7 @@ class _Builder:
                 schema_name, name = None, uri.rpartition("/")[2] if uri else ds_id
             self.sources.append(DataSource(id=node_id, kind=kind, schema_name=schema_name, name=name,
                                            resource_uri=uri))
-            self.nodes[ds_id] = Node(id=node_id, view_id=self.vid, node_type=NodeType.DATASOURCE,
-                                     name=ds_id, raw=x.raw(ds), understood=kind is not DataSourceKind.UNKNOWN)
+            self.nodes[ds_id] = ds_node
 
     def _parse_variable_mappings(self) -> None:
         for m in x.children(x.child(self.root, "variableMappings"), "mapping"):
@@ -242,10 +247,13 @@ class _Builder:
 
     def _parse_node(self, cv: etree._Element, node_id: str, name: str, node_type: NodeType) -> Node:
         node = Node(id=node_id, view_id=self.vid, node_type=node_type, name=name, raw=x.raw(cv))
-        self._check_children(cv, KNOWN_CALCVIEW_CHILDREN, node_id)
-        node.columns.extend(self._view_attributes(cv, node_id))
+        self._check_children(cv, KNOWN_CALCVIEW_CHILDREN, node)
+        node.columns.extend(self._view_attributes(cv, node))
+        calculated = x.child(cv, "calculatedViewAttributes")
+        for ca in x.children(calculated, "calculatedViewAttribute"):
+            self._check_children(ca, {"descriptions", "formula"}, node)
         node.columns.extend(self._calculated_columns(
-            x.child(cv, "calculatedViewAttributes"), "calculatedViewAttribute", node, ColumnKind.ATTRIBUTE))
+            calculated, "calculatedViewAttribute", node, ColumnKind.ATTRIBUTE))
         for f in x.children(cv, "filter"):
             text = x.text(f)
             if text:
@@ -258,9 +266,11 @@ class _Builder:
                       el=cv, node_id=node_id, severity=Severity.INFO)
         return node
 
-    def _view_attributes(self, cv: etree._Element, node_id: str) -> list[Column]:
+    def _view_attributes(self, cv: etree._Element, node: Node) -> list[Column]:
+        node_id = node.id
         columns = []
         for va in x.children(x.child(cv, "viewAttributes"), "viewAttribute"):
+            self._check_children(va, {"descriptions"}, node)
             name = va.get("id") or ""
             aggregation = va.get("aggregationType")
             columns.append(Column(
@@ -321,6 +331,7 @@ class _Builder:
 
     def _resolve_inputs(self) -> None:
         for node, inp in self._pending_inputs:
+            self._check_children(inp, {"mapping"}, node)
             ref = _ref(inp.get("node"))
             source = self.nodes.get(ref)
             if source is None:
@@ -358,11 +369,13 @@ class _Builder:
                     if use not in param.used_in:
                         param.used_in.append(use)
 
-    def _check_children(self, el: etree._Element, known: set[str], node_id: str | None) -> None:
+    def _check_children(self, el: etree._Element, known: set[str], node: Node | None) -> None:
         for c in x.children(el):
             if x.local(c) not in known:
+                if node is not None:
+                    node.understood = False
                 self.warn("UNKNOWN_ELEMENT", f"<{x.local(c)}> inside <{x.local(el)}> is not modelled",
-                          el=c, node_id=node_id)
+                          el=c, node_id=node.id if node is not None else None)
 
 
 def _output_mapping(mapping: etree._Element | None, target: str) -> list[ColumnMapItem]:

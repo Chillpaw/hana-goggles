@@ -24,7 +24,9 @@ def test_garbage_yields_a_failed_result(data):
 def test_every_truncation_of_the_main_fixture_returns_a_result():
     data = (FIXTURES / MAIN).read_bytes()
     for cut in range(0, len(data), 53):
-        assert isinstance(dispatch.parse_bytes(data[:cut], file_name="cut.calculationview"), ParseResult)
+        r = dispatch.parse_bytes(data[:cut], file_name="cut.calculationview")
+        assert isinstance(r, ParseResult)
+        assert "PARSER_CRASH" not in [w.code for w in r.warnings]
 
 
 def test_internal_bug_becomes_a_parser_crash_warning(monkeypatch):
@@ -50,4 +52,5 @@ def test_external_entities_are_never_resolved(tmp_path):
         f'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY e SYSTEM "{secret.as_uri()}">]><x>&e;</x>'
     ).encode()
     root, _, _ = xmlutil.load(data)
-    assert root is None or "SENTINEL_SECRET_42" not in etree.tostring(root, encoding="unicode")
+    assert root is not None
+    assert "SENTINEL_SECRET_42" not in etree.tostring(root, encoding="unicode")

@@ -98,6 +98,10 @@ Jacob checked a real file on 2026-10-14.
 - The `<filter>` element's text and the language attribute
 - `calculatedMeasures` structure
 - `variableMappings` structure (`mapping@dataSource`, `targetVariable@name`, `localVariable`)
+- `calculationView@filterExpressionLanguage` as the filter-language carrier (parser also accepts `filter@expressionLanguage`)
+- children of `viewAttribute` (e.g. attribute-level `filter` elements) and node-level children such as `restrictedViewAttributes` — currently UNKNOWN_ELEMENT + node not understood
+- how non-parameter variables (`parameter="false"`) bind to attributes — `V_COMPANY` ends with `used_in: []` today; codegen needs this
+- other root children real files may carry (e.g. `informationModelLayout`) — currently UNKNOWN_ELEMENT
 
 ### Spec deltas from the skeleton
 
@@ -2764,3 +2768,4 @@ Golden files are new: first snapshot of the M1 IR for all four synthetic fixture
 - [ ] The malformed fixtures produce warnings, not exceptions (M1)
 - [ ] The `xsi:type` element names used by the parser are confirmed against the real files. **This is the spec's M1 acceptance gate.** Confirm the names from Jacob's `xsi:type` grep of the real folder, or wait for M4. Until then M1 counts as "done on synthetic, pending confirmation".
 - [ ] The "Still unconfirmed" list is carried forward into the M4 plan. The audit must report namespace URIs, root attribute names (`schemaVersion`, `dataCategory`, …), every element tag (this catches `calculatedViewAtrributes` versus `calculatedViewAttributes`), every `xsi:type` value, and the counts of each warning code.
+- [ ] The M4 audit must report UNKNOWN_ELEMENT counts by parent tag and child tag.

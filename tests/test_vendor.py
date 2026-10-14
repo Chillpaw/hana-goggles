@@ -26,3 +26,8 @@ def test_every_script_in_index_is_vendored():
     html = (WEB_DIR / "templates" / "index.html").read_text(encoding="utf-8")
     for src in re.findall(r'<script src="/static/vendor/([^"]+)"', html):
         assert (VENDOR_DIR / src).is_file(), src
+
+
+@pytest.mark.parametrize("path", ["/docs", "/redoc", "/openapi.json"])
+def test_cdn_backed_api_docs_are_disabled(path):
+    assert TestClient(create_app()).get(path).status_code == 404

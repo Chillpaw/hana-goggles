@@ -10,7 +10,7 @@ WEB_DIR = Path(__file__).parent / "web"
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="CalcView Migrator")
+    app = FastAPI(title="CalcView Migrator", docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=WEB_DIR / "static"), name="static")
     templates = Jinja2Templates(directory=WEB_DIR / "templates")
 

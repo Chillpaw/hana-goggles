@@ -29,3 +29,6 @@ app = ["web/templates/*.html", "web/static/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+  "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]

@@ -29,8 +29,24 @@ Carried forward from the subagent-driven build of plan `2026-10-14-process-view-
 - Ruling (T6): projection "Takes N columns" counts non-calculated columns; the output headline counts all columns including calculated ones (both pinned by the plan's fixture sentences).
 - Ruling (T6): a calc-view source with no estate and no resolution gets no detail (neither "Defined in this project" nor "external") — Task 7 and M6 must not "fix" this.
 - Ruling (T6): invented wording for gaps (CDS, opaque, script statement, unknown cardinality, no join columns, missing inputs, unknown aggregation) — each states the gap visibly; see the plan's Task 6 rules.
+- Ruling (T7): the view graph uses dagre `rankDir: 'BT'` — output at the top, sources at the bottom, like the HANA modeller.
+- Ruling (T7): POST bodies are parsed with `parse_qs` (no python-multipart); POST /import opens the Store only after the folder is validated, so a bad path never creates a db.
+- Ruling (T7): duplicate edge pairs get `#n` id suffixes; an edge to an undefined step gets a visible "missing" placeholder node; a repeated node id is drawn once (last definition wins).
+- Ruling (T7): list "Reads views"/"Used by" counts are direct internal links; the header adds transitive lists when longer.
+- Ruling (T7): identity travels in query parameters (`/node?view=&node=<node id>`, `POST /notes?view=`, `POST /node/notes?view=&node=`, `GET /view.mmd?view=`) because view ids may contain `/`; the page itself is `/views/{id:path}`.
+- Ruling (T7 review, security): unsafe methods require Sec-Fetch-Site absent/same-origin/none and a matching Origin, and a urlencoded body (else 403/415); TrustedHostMiddleware allows only 127.0.0.1 and localhost. Prevents a web page from triggering imports (which delete views) and DNS-rebinding reads.
+- Ruling (T7): stored-data errors render a 409 page with a re-import action; store reads fetch all rows before validating so a failed validation cannot hold a read lock.
+- Ruling (T9): SQL-language expressions are only counted, never mined for names (SQL can hold unquoted column names before `(`).
+- Ruling (T9 review): namespace URIs print only for `http://www.sap.com/ndb/…` and `http://www.w3.org/…`; others and foreign-namespace prefixes print as `<other>`. Function names split into a known HANA catalogue (`KNOWN_FUNCTIONS`, grows from audit reports) and "unrecognised (review before sharing)".
+- Ruling (T9): element/attribute names, xsi:type values and allow-listed enum values print as written (the M1 gate needs them); the README and the report intro tell the reader to review these before sharing.
+- Ruling (T9): the audit counts UNKNOWN_ELEMENT through an optional collector on the parser's own `_check_children`, so the two cannot drift.
+- Ruling (T9): duplicate-id counts exclude only files whose id fell back to the file stem.
+- Resolved: T6 → T7 deferred items (failed-view message; escaped `(not parsed)` markup).
 
 ## Deferred minor findings
+- T9: each file is parsed twice by the audit (parser + structure scan); fine at estate scale.
+- T7: view ids `.` or `..` would be normalised away by browsers.
+- T7: every node click recomputes the estate; fine at a few hundred views.
 - T6 → T7: a failed view yields no steps; the Steps tab must show a "could not be parsed" message with the view warnings.
 - T6 → T7: `` `raw` (not parsed) `` text must be styled/escaped in HTML, not rendered as Markdown.
 - T4: a failed import that created a db removes the .db but not a stray -journal file.

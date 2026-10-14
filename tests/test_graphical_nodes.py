@@ -99,3 +99,29 @@ def test_unparseable_expression_is_kept_and_flagged(parse_fixture):
     assert cc.expression.ast is None
     assert projection.understood is False
     assert codes(result) == ["EXPR_PARSE_FAILED"]
+
+
+def test_sql_filter_language_comes_from_the_calculation_view():
+    from app.parsers.dispatch import parse_bytes
+
+    text = """<?xml version="1.0" encoding="UTF-8"?>
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" schemaVersion="2.3" id="INLINE_VIEW" dataCategory="DEFAULT">
+  <origin/>
+  <dataSources>
+    <DataSource id="TABLE_A" type="DATA_BASE_TABLE">
+      <columnObject schemaName="SCHEMA_1" columnObjectName="TABLE_A"/>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="Projection_1" filterExpressionLanguage="SQL">
+      <viewAttributes><viewAttribute id="COL_1"/></viewAttributes>
+      <input node="#TABLE_A"><mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/></input>
+      <filter>"COL_1" = 'X'</filter>
+    </calculationView>
+  </calculationViews>
+</Calculation:scenario>"""
+    result = parse_bytes(text.encode(), file_name="inline.calculationview")
+    expression = node(result, "Projection_1").filters[0].expression
+    assert expression.lang is ExpressionLang.SQL
+    assert expression.ast is None
+    assert "SQL_EXPR_DEFERRED" in codes(result)

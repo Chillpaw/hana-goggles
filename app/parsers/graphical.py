@@ -169,7 +169,8 @@ class _Builder:
         for f in x.children(cv, "filter"):
             text = x.text(f)
             if text:
-                node.filters.append(Filter(expression=self._expression(text, f.get("expressionLanguage"), node, "filter")))
+                node.filters.append(Filter(expression=self._expression(
+                    text, f.get("expressionLanguage") or cv.get("filterExpressionLanguage"), node, "filter")))
         if node_type is NodeType.JOIN:
             node.join = self._join_spec(cv, node_id)
         if node_type is NodeType.RANK:

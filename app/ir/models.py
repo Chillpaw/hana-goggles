@@ -258,4 +258,51 @@ class Estate(IRModel):
     warnings: list[IRWarning] = Field(default_factory=list)
 
 
+class SignoffStatus(StrEnum):
+    DRAFT = "draft"
+    REVIEWED = "reviewed"
+    APPROVED = "approved"
+
+
+class TargetKind(StrEnum):
+    VIEW = "view"
+    NODE = "node"
+
+
+class Annotation(IRModel):
+    """A person's notes on a view or node, keyed by the deterministic IR id. Survives
+    re-import; marked stale (never deleted) when its target changes or disappears."""
+
+    target_id: str
+    target_kind: TargetKind
+    purpose_text: str = ""
+    owner: str = ""
+    signoff_status: SignoffStatus = SignoffStatus.DRAFT
+    notes: str = ""
+    stale: bool = False
+    stale_reason: str | None = None
+    updated_at: str | None = None  # ISO 8601 UTC, set by the store on save
+
+
+class ViewSummary(IRModel):
+    """One stored view's summary row (the full ParseResult is loaded separately)."""
+
+    id: str
+    rel_path: str
+    package_path: str | None = None
+    file_hash: str
+    view_type: ViewType
+    data_category: DataCategory
+    parse_status: ParseStatus
+    coverage_pct: float
+    node_count: int
+    warning_count: int
+
+
+class Project(IRModel):
+    name: str
+    source_folder: str
+    imported_at: str  # ISO 8601 UTC
+
+
 ExprNode.model_rebuild()

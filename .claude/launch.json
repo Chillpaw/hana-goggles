@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "calcview",
+      "runtimeExecutable": ".venv/bin/calcview",
+      "runtimeArgs": ["serve", "--port", "8765"],
+      "port": 8765
+    }
+  ]
+}

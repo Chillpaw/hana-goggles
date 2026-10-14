@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Malformed variant: a calculated column whose formula is missing its closing paren. -->
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" schemaVersion="2.3" id="BAD_EXPRESSION_VIEW" dataCategory="DEFAULT">
+  <origin/>
+  <dataSources>
+    <DataSource id="TABLE_A" type="DATA_BASE_TABLE">
+      <viewAttributes allViewAttributes="true"/>
+      <columnObject schemaName="SCHEMA_1" columnObjectName="TABLE_A"/>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="Projection_1">
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes>
+        <calculatedViewAttribute datatype="INTEGER" id="CC_1" expressionLanguage="COLUMN_ENGINE">
+          <formula>if(&quot;COL_1&quot; = 'X', 1</formula>
+        </calculatedViewAttribute>
+      </calculatedViewAttributes>
+      <input node="#TABLE_A">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+      </input>
+    </calculationView>
+  </calculationViews>
+  <logicalModel id="Projection_1">
+    <attributes>
+      <attribute id="COL_1" order="1">
+        <keyMapping columnObjectName="Projection_1" columnName="COL_1"/>
+      </attribute>
+      <attribute id="CC_1" order="2">
+        <keyMapping columnObjectName="Projection_1" columnName="CC_1"/>
+      </attribute>
+    </attributes>
+  </logicalModel>
+</Calculation:scenario>

@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Malformed variant: a calculationView xsi:type the parser does not know. -->
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" schemaVersion="2.3" id="UNKNOWN_TYPE_VIEW" dataCategory="DEFAULT">
+  <origin/>
+  <localVariables/>
+  <variableMappings/>
+  <dataSources>
+    <DataSource id="TABLE_A" type="DATA_BASE_TABLE">
+      <viewAttributes allViewAttributes="true"/>
+      <columnObject schemaName="SCHEMA_1" columnObjectName="TABLE_A"/>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="Projection_1">
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes/>
+      <input node="#TABLE_A">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+      </input>
+    </calculationView>
+    <calculationView xsi:type="Calculation:FancyNewView" id="Fancy_1">
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+      </viewAttributes>
+      <input node="#Projection_1">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+      </input>
+    </calculationView>
+  </calculationViews>
+  <logicalModel id="Fancy_1">
+    <attributes>
+      <attribute id="COL_1" order="1">
+        <keyMapping columnObjectName="Fancy_1" columnName="COL_1"/>
+      </attribute>
+    </attributes>
+  </logicalModel>
+  <layout>
+    <shapes/>
+  </layout>
+</Calculation:scenario>

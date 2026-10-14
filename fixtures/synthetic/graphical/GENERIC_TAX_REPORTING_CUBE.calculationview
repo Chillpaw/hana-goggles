@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture built from the structural skeleton supplied on 2026-10-14.
+     Element order and nesting follow that skeleton; every name is a dummy. -->
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" schemaVersion="2.3" id="GENERIC_TAX_REPORTING_CUBE" applyPrivilegeType="ANALYTIC_PRIVILEGE" checkAnalyticPrivileges="true" defaultClient="$$client$$" defaultLanguage="$$language$$" visibility="internal" calculationScenarioType="TREE_BASED" dataCategory="CUBE" enforceSqlExecution="false" executionSemantic="UNDEFINED" outputViewType="Aggregation">
+  <origin/>
+  <descriptions defaultDescription="GENERIC_TAX_REPORTING_CUBE"/>
+  <localVariables>
+    <variable id="IP_FISCAL_YEAR" parameter="true">
+      <descriptions defaultDescription="IP_FISCAL_YEAR"/>
+      <variableProperties datatype="NVARCHAR" length="4" mandatory="true">
+        <valueDomain type="empty"/>
+        <selection multiline="false" type="SingleValue"/>
+      </variableProperties>
+    </variable>
+    <variable id="IP_RATE" parameter="true">
+      <descriptions defaultDescription="IP_RATE"/>
+      <variableProperties datatype="DECIMAL" length="5" scale="2" mandatory="false" defaultValue="1">
+        <valueDomain type="empty"/>
+        <selection multiline="false" type="SingleValue"/>
+      </variableProperties>
+    </variable>
+    <variable id="V_COMPANY" parameter="false">
+      <descriptions defaultDescription="V_COMPANY"/>
+      <variableProperties datatype="NVARCHAR" length="4" mandatory="false">
+        <valueDomain type="AttributeValue"/>
+        <selection multiline="true" type="SingleValue"/>
+      </variableProperties>
+    </variable>
+  </localVariables>
+  <variableMappings>
+    <mapping xsi:type="Variable:VariableMapping" dataSource="#SOURCE_VIEW_01">
+      <targetVariable name="IP_YEAR" resourceUri="/pkg.synthetic/calculationviews/SOURCE_VIEW_01"/>
+      <localVariable>#IP_FISCAL_YEAR</localVariable>
+    </mapping>
+  </variableMappings>
+  <dataSources>
+    <DataSource id="SOURCE_VIEW_01" type="CALCULATION_VIEW">
+      <viewAttributes allViewAttributes="true"/>
+      <resourceUri>/pkg.synthetic/calculationviews/SOURCE_VIEW_01</resourceUri>
+    </DataSource>
+    <DataSource id="TABLE_A" type="DATA_BASE_TABLE">
+      <viewAttributes allViewAttributes="true"/>
+      <columnObject schemaName="SCHEMA_1" columnObjectName="TABLE_A"/>
+    </DataSource>
+    <DataSource id="TABLE_B" type="DATA_BASE_TABLE">
+      <viewAttributes allViewAttributes="true"/>
+      <columnObject schemaName="SCHEMA_1" columnObjectName="TABLE_B"/>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="Projection_1">
+      <descriptions/>
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+        <viewAttribute id="COL_2"/>
+        <viewAttribute id="COL_3"/>
+        <viewAttribute id="AMT_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes>
+        <calculatedViewAttribute datatype="DECIMAL" id="CC_1" length="15" scale="2" expressionLanguage="COLUMN_ENGINE">
+          <formula>if(&quot;COL_2&quot; = 'X', &quot;AMT_1&quot;, 0)</formula>
+        </calculatedViewAttribute>
+      </calculatedViewAttributes>
+      <input node="#SOURCE_VIEW_01">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_2" source="COL_2"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_3" source="COL_3"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+      </input>
+      <filter>(&quot;COL_3&quot; = '$$IP_FISCAL_YEAR$$')</filter>
+    </calculationView>
+    <calculationView xsi:type="Calculation:JoinView" id="Join_1" cardinality="CN_1" joinOrder="OUTSIDE_IN" joinType="leftOuter">
+      <descriptions/>
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+        <viewAttribute id="COL_2"/>
+        <viewAttribute id="COL_3"/>
+        <viewAttribute id="COL_4"/>
+        <viewAttribute id="AMT_1"/>
+        <viewAttribute id="CC_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes/>
+      <input node="#Projection_1">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_2" source="COL_2"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_3" source="COL_3"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="CC_1" source="CC_1"/>
+      </input>
+      <input node="#TABLE_A">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_4" source="COL_4"/>
+      </input>
+      <joinAttribute name="COL_1"/>
+    </calculationView>
+    <calculationView xsi:type="Calculation:UnionView" id="Union_1">
+      <descriptions/>
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+        <viewAttribute id="COL_3"/>
+        <viewAttribute id="COL_5"/>
+        <viewAttribute id="AMT_1"/>
+        <viewAttribute id="CC_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes/>
+      <input emptyUnionBehavior="NO_ROW" node="#Join_1">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_3" source="COL_3"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="CC_1" source="CC_1"/>
+        <mapping xsi:type="Calculation:ConstantAttributeMapping" target="COL_5" null="false" value="SRC_A"/>
+      </input>
+      <input emptyUnionBehavior="NO_ROW" node="#TABLE_B">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_3" source="COL_3"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+        <mapping xsi:type="Calculation:ConstantAttributeMapping" target="CC_1" null="true"/>
+        <mapping xsi:type="Calculation:ConstantAttributeMapping" target="COL_5" null="false" value="SRC_B"/>
+      </input>
+    </calculationView>
+    <calculationView xsi:type="Calculation:AggregationView" id="Aggregation_1">
+      <descriptions/>
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+        <viewAttribute id="COL_3"/>
+        <viewAttribute id="COL_5"/>
+        <viewAttribute id="AMT_1" aggregationType="sum"/>
+        <viewAttribute id="CC_1" aggregationType="sum"/>
+      </viewAttributes>
+      <calculatedViewAttributes>
+        <calculatedViewAttribute datatype="DECIMAL" id="CC_2" length="17" scale="2" expressionLanguage="COLUMN_ENGINE">
+          <formula>&quot;AMT_1&quot; * $$IP_RATE$$</formula>
+        </calculatedViewAttribute>
+      </calculatedViewAttributes>
+      <input node="Union_1">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_3" source="COL_3"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_5" source="COL_5"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="CC_1" source="CC_1"/>
+      </input>
+    </calculationView>
+  </calculationViews>
+  <logicalModel id="Aggregation_1">
+    <attributes>
+      <attribute id="COL_1" order="1" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_1"/>
+        <keyMapping columnObjectName="Aggregation_1" columnName="COL_1"/>
+      </attribute>
+      <attribute id="COL_3" order="2" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_3"/>
+        <keyMapping columnObjectName="Aggregation_1" columnName="COL_3"/>
+      </attribute>
+      <attribute id="COL_5" order="3" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_5"/>
+        <keyMapping columnObjectName="Aggregation_1" columnName="COL_5"/>
+      </attribute>
+    </attributes>
+    <calculatedAttributes/>
+    <privateDataFoundation>
+      <tableProxies/>
+      <joins/>
+      <layout>
+        <shapes/>
+      </layout>
+    </privateDataFoundation>
+    <baseMeasures>
+      <measure id="AMT_1" order="4" aggregationType="sum" engineAggregation="sum" measureType="simple">
+        <descriptions defaultDescription="AMT_1"/>
+        <measureMapping columnObjectName="Aggregation_1" columnName="AMT_1"/>
+      </measure>
+      <measure id="CC_1" order="5" aggregationType="sum" engineAggregation="sum" measureType="simple">
+        <descriptions defaultDescription="CC_1"/>
+        <measureMapping columnObjectName="Aggregation_1" columnName="CC_1"/>
+      </measure>
+      <measure id="CC_2" order="6" aggregationType="sum" engineAggregation="sum" measureType="simple">
+        <descriptions defaultDescription="CC_2"/>
+        <measureMapping columnObjectName="Aggregation_1" columnName="CC_2"/>
+      </measure>
+    </baseMeasures>
+    <calculatedMeasures>
+      <measure id="CM_1" order="7" aggregationType="sum" measureType="simple" datatype="DECIMAL" length="17" scale="2" expressionLanguage="COLUMN_ENGINE">
+        <descriptions defaultDescription="CM_1"/>
+        <formula>&quot;AMT_1&quot; - &quot;CC_1&quot;</formula>
+      </measure>
+    </calculatedMeasures>
+    <restrictedMeasures/>
+    <localDimensions/>
+  </logicalModel>
+  <layout>
+    <shapes>
+      <shape expanded="true" modelObjectName="Output" modelObjectNameSpace="MeasureGroup">
+        <upperLeftCorner x="40" y="85"/>
+      </shape>
+    </shapes>
+  </layout>
+</Calculation:scenario>

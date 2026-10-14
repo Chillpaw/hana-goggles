@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" schemaVersion="2.3" id="TRUNCATED_VIEW" dataCategory="CUBE">
+  <origin/>
+  <dataSources>
+    <DataSource id="TABLE_A" type="DATA_BASE_TABLE">
+      <viewAttri

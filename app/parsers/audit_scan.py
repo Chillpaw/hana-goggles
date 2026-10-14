@@ -1,12 +1,12 @@
 """Structural facts from one view file, for the audit (M4). Never raises on input.
 
-Everything collected here is structure: element and attribute local names, namespace
-URIs, `xsi:type` values, values of a fixed allow-list of schema-enum attributes, the
+Everything collected here is structure: element and attribute local names, SAP and W3C
+namespace URIs (any other URI is `<other>`), `xsi:type` values, values of a fixed allow-list of schema-enum attributes, the
 *shape* of resourceUri values, column-engine function names and counts. Names, ids,
 descriptions, literals, expressions and parameter defaults are never collected.
 
-UNKNOWN_ELEMENT pairs are computed with the graphical parser's own known-children sets,
-walking the same places the parser checks (tests cross-check the totals).
+UNKNOWN_ELEMENT pairs are not collected here: the audit gets them from the parser itself
+(`parse_bytes(..., unknown=Counter())`), so both always agree.
 """
 from __future__ import annotations
 
@@ -16,7 +16,6 @@ from dataclasses import dataclass, field
 
 from lxml import etree
 
-from app.parsers import graphical as g
 from app.parsers import xmlutil as x
 from app.parsers.expressions import ExprParseError, parse_expression
 
@@ -26,6 +25,9 @@ _ENUM_VALUE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,39}$")
 _VERSION_VALUE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.]{0,39}$")
 _XSI_TYPE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_.-]{0,63}(?::[A-Za-z_][A-Za-z0-9_.-]{0,63})?$")
 _FUNCTION_NAME_RE = re.compile(r"^[a-z_][a-z0-9_]{0,39}$")
+# Namespace URIs printed as written; any other URI could name a company or project.
+_PRINTABLE_NAMESPACE_RE = re.compile(r"^http://www\.sap\.com/ndb/|^http://www\.w3\.org/")
+_XML_NS = "http://www.w3.org/XML/1998/namespace"
 
 # Root (scenario) attributes whose values are schema enums.
 ROOT_ENUM_ATTRIBUTES = frozenset({
@@ -67,7 +69,9 @@ _CALL_RE = re.compile(r"([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 class FileStructure:
     well_formed: bool = False
     scan_error: bool = False           # the walk itself failed (a bug, never an input problem)
-    namespaces: Counter = field(default_factory=Counter)        # URI -> 1 per file
+    root_tag: str | None = None        # local name of the root element
+    root_has_id: bool = False          # root carries a non-empty id (else the parser uses the stem)
+    namespaces: Counter = field(default_factory=Counter)        # URI or <other> -> 1 per file
     elements: Counter = field(default_factory=Counter)          # local tag -> count
     children: Counter = field(default_factory=Counter)          # (parent, child) -> count
     attributes: Counter = field(default_factory=Counter)        # (tag, attr) -> count
@@ -77,7 +81,6 @@ class FileStructure:
     expressions: Counter = field(default_factory=Counter)       # kind -> count
     functions_parsed: Counter = field(default_factory=Counter)
     functions_unparsed: Counter = field(default_factory=Counter)
-    unknown_elements: Counter = field(default_factory=Counter)  # (parent, child) -> count
 
 
 def scan_structure(data: bytes) -> FileStructure:
@@ -90,12 +93,11 @@ def scan_structure(data: bytes) -> FileStructure:
         return result
     result.well_formed = True
     try:
+        result.root_tag = x.local(root)
+        result.root_has_id = bool(root.get("id"))
         _walk(root, result)
-        if x.local(root) == "scenario":
-            _unknown_elements(root, result.unknown_elements)
     except Exception:  # never raise on an input file; the report counts this
-        fresh = FileStructure(well_formed=True, scan_error=True)
-        return fresh
+        return FileStructure(well_formed=True, scan_error=True)
     return result
 
 
@@ -126,19 +128,19 @@ def _walk(root: etree._Element, out: FileStructure) -> None:
         _enum_values(el, tag, el is root, out.enum_values)
         _resource_uris(el, tag, parent, out.resource_uri_shapes)
         _expression(el, tag, parent, out)
-    for uri in uris:
-        out.namespaces[uri] += 1
+    for label in {uri if _PRINTABLE_NAMESPACE_RE.match(uri) else OTHER for uri in uris}:
+        out.namespaces[label] += 1
 
 
 def _attr_label(el: etree._Element, qname: etree.QName) -> str:
     if not qname.namespace:
         return qname.localname
-    if qname.namespace == "http://www.w3.org/XML/1998/namespace":
+    if qname.namespace == _XML_NS:
         return f"xml:{qname.localname}"
+    if not _PRINTABLE_NAMESPACE_RE.match(qname.namespace):
+        return f"{OTHER}:{qname.localname}"   # the prefix of a foreign namespace is not printed
     prefixes = sorted(p for p, uri in el.nsmap.items() if uri == qname.namespace and p)
-    if prefixes:
-        return f"{prefixes[0]}:{qname.localname}"
-    return f"{{{qname.namespace}}}{qname.localname}"
+    return f"{prefixes[0]}:{qname.localname}" if prefixes else OTHER
 
 
 def _enum_values(el: etree._Element, tag: str, is_root: bool, out: Counter) -> None:
@@ -167,8 +169,8 @@ def _resource_uris(el: etree._Element, tag: str, parent: etree._Element | None, 
 
 def uri_shape(uri: str | None) -> str:
     """`/pkg.a/calculationviews/VIEW` -> `/<package>/calculationviews/<name>`. No segment text
-    survives except the fixed URI_KEYWORDS; empty segments (leading, trailing, doubled
-    slashes) are kept so the shape stays faithful."""
+    survives except the fixed URI_KEYWORDS (matched case-insensitively, printed lower-case);
+    empty segments (leading, trailing, doubled slashes) are kept so the shape stays faithful."""
     if uri is None or not uri.strip():
         return "<empty>"
     segments = uri.strip().split("/")
@@ -179,8 +181,8 @@ def uri_shape(uri: str | None) -> str:
             shaped.append("")
         elif i == filled[-1]:
             shaped.append("<namespace>::<name>" if "::" in seg else "<name>")
-        elif seg in URI_KEYWORDS:
-            shaped.append(seg)
+        elif seg.lower() in URI_KEYWORDS:
+            shaped.append(seg.lower())
         elif i == filled[0] and len(filled) >= 3:
             shaped.append("<package>")
         else:
@@ -201,7 +203,7 @@ def _expression(el: etree._Element, tag: str, parent: etree._Element | None, out
     else:
         lang = el.get("expressionLanguage") or (
             parent.get("filterExpressionLanguage") if parent is not None else None)
-    if (lang or "").upper() == "SQL":
+    if (lang or "").strip().upper() == "SQL":
         # SQL text may hold unquoted column names followed by "(": count it, never mine it.
         out.expressions["sql"] += 1
         return
@@ -228,41 +230,3 @@ def unparsed_function_names(text: str) -> list[str]:
         names.append(name if _FUNCTION_NAME_RE.match(name) else OTHER)
     return names
 
-
-def _unknown_elements(root: etree._Element, out: Counter) -> None:
-    """Mirror of the places graphical.py calls _check_children, using its sets."""
-    def check(el: etree._Element | None, known) -> None:
-        if el is None:
-            return
-        for c in x.children(el):
-            if x.local(c) not in known:
-                out[(x.local(el), x.local(c))] += 1
-
-    check(root, g.ROOT_CHILDREN)
-    for var in x.children(x.child(root, "localVariables"), "variable"):
-        check(var, g.VARIABLE_CHILDREN)
-        check(x.child(var, "variableProperties"), g.VARIABLE_PROPERTIES_CHILDREN)
-    for ds in x.children(x.child(root, "dataSources"), "DataSource"):
-        check(ds, g.DATASOURCE_CHILDREN)
-    wrapper = x.child(root, "calculationViews")
-    for cv in x.children(wrapper if wrapper is not None else root, "calculationView"):
-        if (x.xsi_type_name(cv) or "") in g.NODE_TYPES:
-            check(cv, g.KNOWN_CALCVIEW_CHILDREN)
-            for va in x.children(x.child(cv, "viewAttributes"), "viewAttribute"):
-                check(va, g.VIEW_ATTRIBUTE_CHILDREN)
-            for ca in x.children(x.child(cv, "calculatedViewAttributes"), "calculatedViewAttribute"):
-                check(ca, g.CALCULATED_VIEW_ATTRIBUTE_CHILDREN)
-        for inp in x.children(cv, "input"):
-            check(inp, g.INPUT_CHILDREN)
-    lm = x.child(root, "logicalModel")
-    if lm is None:
-        return
-    check(lm, g.KNOWN_LOGICAL_MODEL_CHILDREN)
-    for el in x.children(x.child(lm, "attributes"), "attribute"):
-        check(el, g.ATTRIBUTE_CHILDREN)
-    for el in x.children(x.child(lm, "baseMeasures"), "measure"):
-        check(el, g.BASE_MEASURE_CHILDREN)
-    for el in x.children(x.child(lm, "calculatedAttributes"), "calculatedAttribute"):
-        check(el, g.CALCULATED_ATTRIBUTE_CHILDREN)
-    for el in x.children(x.child(lm, "calculatedMeasures"), "measure"):
-        check(el, g.CALCULATED_MEASURE_CHILDREN)

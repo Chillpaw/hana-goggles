@@ -38,11 +38,18 @@ calcview audit path/to/views --format json > audit.json
 
 It reads the folder directly (no database is opened or created) and prints the same report in either format.
 
-**What it prints:** file counts by suffix, parse status and view type; warning codes and their counts; coverage percentages (sorted, plus a histogram); how many view ids are shared by more than one file (counts only); namespace URIs; every XML element and attribute name, with counts and parent > child pairs; `xsi:type` values; the values of a fixed list of schema-enum attributes (such as `dataCategory`, `DataSource@type`, `joinType`, `aggregationType`, datatypes), with anything that does not look like an enum token shown as `<other>`; the shape of each `resourceUri` with every name replaced by its role (e.g. `/<package>/calculationviews/<name>`); counts of expressions by language; column-engine function names; and unknown elements by parent > child.
+**What it prints:** file counts by suffix, parse status and view type; warning codes and their counts; coverage percentages (sorted, plus a histogram); how many view ids are shared by more than one file (counts only); SAP and W3C namespace URIs (any other URI shows as `<other>`, and attributes in such a namespace as `<other>:name`); every XML element and attribute name, with counts and parent > child pairs; `xsi:type` values; the values of a fixed list of schema-enum attributes (such as `dataCategory`, `DataSource@type`, `joinType`, `aggregationType`, datatypes), with anything that does not look like an enum token shown as `<other>`; the shape of each `resourceUri` with every name replaced by its role (e.g. `/<package>/calculationviews/<name>`); counts of expressions by language; column-engine function names, split into known catalogue functions and unrecognised names; and unknown elements by parent > child.
 
 **What it never prints:** file names, folder paths, view, node, column or parameter ids and names, schema and table names, descriptions, literals, formulas and filter text, parameter defaults, or warning messages. SQL-language expressions are only counted. Nothing from a project database is printed.
 
-**Before bringing it back:** read it. The section "Column-engine functions (unparsed text; review before sharing)" is mined from formulas that did not parse, after removing quoted strings, quoted column names and `$$…$$` placeholders; check that every entry there is a function name. Then copy the file out (JSON is the easier one to diff here) and add it to the conversation.
+**Before bringing it back:** read it, and check that everything below is a schema word (not a company, project, table or column name):
+
+- element and attribute names outside SAP namespaces (for example attributes shown as `<other>:name`),
+- `xsi:type` values,
+- enum attribute values,
+- the two "Unrecognised function names (review before sharing)" sections. The unparsed-text one is mined from formulas that did not parse, after removing quoted strings, quoted column names and `$$…$$` placeholders.
+
+Delete any line that is not a schema word and mention that you did. Then copy the file out (JSON is easier to diff here) and add it to the conversation.
 
 ## More
 

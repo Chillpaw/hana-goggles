@@ -2,18 +2,21 @@
 import json
 import re
 import shutil
+from collections import Counter
 
 import pytest
 from conftest import FIXTURES, MAIN
 from lxml import etree
 
 from app.audit import (
-    FileFacts, aggregate, coverage_bucket, format_json, format_text, run_audit,
+    KNOWN_FUNCTIONS, FileFacts, aggregate, coverage_bucket, file_facts, format_json, format_text,
+    run_audit,
 )
+from app.ir.models import ParseStatus, ViewType
 from app.parsers import audit_scan
 from app.parsers.audit_scan import OTHER, scan_structure, unparsed_function_names, uri_shape
-from app.ir.models import ParseStatus, ViewType
 from app.parsers.dispatch import parse_bytes
+from app.parsers.xmlutil import XSI_NS
 
 LEAK = "audit/LEAKCANARY_VIEW.calculationview"
 ALL_FIXTURES = sorted(FIXTURES.rglob("*.calculationview"))
@@ -80,7 +83,6 @@ def test_main_fixture_functions_and_uri_shapes(main_structure):
         ("DataSource/resourceUri", "/<package>/calculationviews/<name>"): 1,
         ("targetVariable@resourceUri", "/<package>/calculationviews/<name>"): 1,
     }
-    assert s.unknown_elements == {}
 
 
 # --- structure scan rules ---------------------------------------------------------------
@@ -95,7 +97,7 @@ def test_main_fixture_functions_and_uri_shapes(main_structure):
     ("/p/calculationviews/V/", "/<package>/calculationviews/<name>/"),
     ("//p//calculationviews/V", "//<package>//calculationviews/<name>"),
     ("", "<empty>"), ("   ", "<empty>"), (None, "<empty>"),
-    ("/CalculationViews/X/Y", "/<package>/<segment>/<name>"),   # keywords match exactly
+    ("/P/CalculationViews/X", "/<package>/calculationviews/<name>"),   # case-insensitive
 ])
 def test_uri_shape(uri, shape):
     assert uri_shape(uri) == shape
@@ -117,7 +119,7 @@ def test_unparsed_function_names_strip_quotes_and_placeholders(text, names):
 def test_sql_expressions_are_counted_not_mined():
     data = scenario(
         '<calculationViews><calculationView xsi:type="Calculation:ProjectionView" id="P" '
-        'filterExpressionLanguage="SQL"><calculatedViewAttributes>'
+        'filterExpressionLanguage="sql "><calculatedViewAttributes>'
         '<calculatedViewAttribute id="C" expressionLanguage="SQL"><formula>SECRETFN(SECRETCOL)'
         '</formula></calculatedViewAttribute></calculatedViewAttributes>'
         '<filter>OTHERFN(X) = 1</filter></calculationView></calculationViews>')
@@ -161,6 +163,7 @@ def test_odd_xsi_type_becomes_other():
 def test_scan_structure_never_raises(data):
     s = scan_structure(data)
     assert isinstance(s.elements, dict)
+    assert not s.scan_error
 
 
 def test_garbage_is_not_well_formed():
@@ -174,9 +177,11 @@ def test_garbage_is_not_well_formed():
 @pytest.mark.parametrize("path", ALL_FIXTURES, ids=lambda p: p.stem)
 def test_unknown_element_totals_match_the_parser(path):
     data = path.read_bytes()
-    parsed = parse_bytes(data, file_name=path.name)
+    unknown: Counter = Counter()
+    parsed = parse_bytes(data, file_name=path.name, unknown=unknown)
     expected = sum(1 for w in parsed.warnings if w.code == "UNKNOWN_ELEMENT")
-    assert sum(scan_structure(data).unknown_elements.values()) == expected
+    assert sum(unknown.values()) == expected
+    assert parse_bytes(data, file_name=path.name) == parsed   # the collector never alters the IR
 
 
 UNKNOWN_EVERYWHERE = scenario(
@@ -203,8 +208,14 @@ UNKNOWN_EVERYWHERE = scenario(
     '</logicalModel>')
 
 
+def unknown_pairs(data: bytes) -> Counter:
+    unknown: Counter = Counter()
+    parse_bytes(data, file_name="V.calculationview", unknown=unknown)
+    return unknown
+
+
 def test_unknown_elements_by_parent_and_child():
-    assert scan_structure(UNKNOWN_EVERYWHERE).unknown_elements == {
+    assert unknown_pairs(UNKNOWN_EVERYWHERE) == {
         ("scenario", "informationModelLayout"): 1,
         ("variable", "z1"): 1,
         ("variableProperties", "z2"): 1,
@@ -226,7 +237,7 @@ def test_unknown_elements_everywhere_match_the_parser():
     parsed = parse_bytes(UNKNOWN_EVERYWHERE, file_name="V.calculationview")
     expected = sum(1 for w in parsed.warnings if w.code == "UNKNOWN_ELEMENT")
     assert expected == 14
-    assert sum(scan_structure(UNKNOWN_EVERYWHERE).unknown_elements.values()) == expected
+    assert sum(unknown_pairs(UNKNOWN_EVERYWHERE).values()) == expected
 
 
 # --- aggregation (pure) -----------------------------------------------------------------
@@ -240,10 +251,11 @@ def test_coverage_bucket(pct, bucket):
 
 
 def facts(view_id="V", package=None, status="ok", coverage=100.0, codes=(), structure=True,
-          suffix=".calculationview", view_type="graphical"):
+          suffix=".calculationview", view_type="graphical", id_from_stem=False):
     return FileFacts(suffix=suffix, parse_status=status, view_type=view_type, coverage_pct=coverage,
                      warning_codes=list(codes), view_id=view_id, package_path=package,
-                     structure=scan_structure(b"<scenario/>") if structure else None)
+                     structure=scan_structure(b"<scenario/>") if structure else None,
+                     id_from_stem=id_from_stem)
 
 
 def test_aggregate_files_and_coverage():
@@ -267,7 +279,7 @@ def test_aggregate_files_and_coverage():
 
 def test_aggregate_duplicate_ids_counts_only():
     report = aggregate([facts("A", "p1"), facts("A", "p2"), facts("B", "p1"), facts("B", "p1"),
-                        facts("C"), facts("A", status="failed")])
+                        facts("C"), facts("A", status="failed", id_from_stem=True)])
     assert report["duplicate_view_ids"] == {"ids_shared": 2, "files_involved": 4,
                                             "ids_across_packages": 1}
     assert "A" not in format_json(report)
@@ -290,8 +302,9 @@ def test_run_audit_on_fixtures_json():
     assert report["warning_codes"]["XML_SYNTAX"] == 1
     assert report["xsi_types"]["Calculation:JoinView"] == 1
     assert report["enum_values"]["DataSource@type"]["CALCULATION_VIEW"] >= 1
-    assert report["functions"]["parsed"]["if"] >= 1
-    assert report["functions"]["from_unparsed_text"]["daysbetween"] == 1
+    assert report["functions"]["known"]["parsed"]["if"] >= 1
+    assert report["functions"]["known"]["from_unparsed_text"]["daysbetween"] == 1
+    assert report["functions"]["unrecognised"] == {"parsed": {}, "from_unparsed_text": {}}
     assert report["resource_uri_shapes"]["DataSource/resourceUri"][
         "/<package>/calculationviews/<name>"] >= 1
     assert report["unknown_elements"]["scenario"]["informationModelLayout"] == 1
@@ -310,7 +323,8 @@ def test_run_audit_text_sections():
     for heading in ("== Files ==", "== Parse status ==", "== Coverage ==", "== Warning codes ==",
                     "== Namespace URIs", "== Elements ==", "== Element children",
                     "== Attributes", "== xsi:type values ==", "== Enum attribute values",
-                    "== resourceUri shapes", "== Expressions ==", "== Column-engine functions",
+                    "== resourceUri shapes", "== Expressions ==", "== Known column-engine functions",
+                    "== Unrecognised function names",
                     "== UNKNOWN_ELEMENT", "== Duplicate view ids =="):
         assert heading in text
     assert "Calculation:JoinView: 1" in text
@@ -364,6 +378,10 @@ def harvest_business_strings(paths) -> set[str]:
         for el in _elements(_root(path)):
             for value in el.attrib.values():
                 add(value)
+            for prefix, uri in el.nsmap.items():   # namespace declarations
+                add(uri)
+                if prefix:
+                    add(prefix)
             if el.text and el.text.strip():
                 add(el.text)
     return found
@@ -377,10 +395,15 @@ def allowed_strings(paths) -> set[str]:
         for el in _elements(root):
             tag = etree.QName(el).localname
             allowed.add(tag)
+            for uri in el.nsmap.values():   # SAP and W3C namespace URIs print by design
+                if re.match(r"http://www\.sap\.com/ndb/|http://www\.w3\.org/", uri):
+                    allowed.add(uri)
+                    allowed.update(_TOKEN_RE.findall(uri))
+                    allowed.update(re.split(r"/|::", uri))
             for name, value in el.attrib.items():
                 attr = etree.QName(name).localname
                 allowed.add(attr)
-                if etree.QName(name).namespace == audit_scan.x.XSI_NS:
+                if etree.QName(name).namespace == XSI_NS:
                     allowed.add(value)
                     allowed.update(value.split(":"))
                 elif (el is root and attr in audit_scan.ROOT_ENUM_ATTRIBUTES) or \
@@ -436,12 +459,87 @@ def test_leak_fixture_exercises_every_hiding_place(fixture_bytes):
                    "<resourceUri>/leakcanary.pkg/", 'viewAttribute id="LEAKCANARY_',
                    "'LEAKCANARY_LITERAL'", "'LEAKCANARY_FILTER_VALUE'",
                    'variable id="LEAKCANARY_IP"', 'defaultValue="LEAKCANARY_DEFAULT"',
-                   'expressionLanguage="SQL"'):
+                   'expressionLanguage="SQL"', 'xmlns:lc="urn:leakcanary:ns"',
+                   'lc:note="LEAKCANARY_NS_VALUE"'):
         assert needle in data
     report = aggregate([FileFacts(suffix=".calculationview", parse_status="partial",
                                   view_type="graphical", coverage_pct=50.0,
                                   structure=scan_structure(data.encode("utf-8")))])
     assert report["expressions"] == {"column_engine_parsed": 3, "column_engine_unparsed": 1,
                                      "sql": 1}
-    assert report["functions"] == {"parsed": {"if": 1, "leftstr": 1},
-                                   "from_unparsed_text": {"daysbetween": 1}}
+    assert report["functions"] == {
+        "known": {"parsed": {"if": 1, "leftstr": 1}, "from_unparsed_text": {"daysbetween": 1}},
+        "unrecognised": {"parsed": {}, "from_unparsed_text": {}},
+    }
+    assert report["namespaces"][OTHER] == 1
+
+
+# --- fix round: namespaces, function catalogue, duplicate ids -----------------------------
+
+def test_foreign_namespaces_and_their_attributes_are_masked():
+    data = (b'<scenario xmlns="urn:acme:secret" xmlns:sap="http://www.sap.com/ndb/X.ecore" '
+            b'xmlns:acme="http://acme.example/ns" acme:flag="1" sap:ok="1" '
+            b'xmlns:w="http://www.w3.org/2001/XMLSchema-instance" w:type="a:B"/>')
+    s = scan_structure(data)
+    assert s.namespaces == {OTHER: 1, "http://www.sap.com/ndb/X.ecore": 1,
+                            "http://www.w3.org/2001/XMLSchema-instance": 1}
+    assert set(s.attributes) == {("scenario", f"{OTHER}:flag"), ("scenario", "sap:ok"),
+                                 ("scenario", "w:type")}
+    assert "acme" not in format_json(aggregate([FileFacts(
+        suffix=".calculationview", parse_status="failed", view_type="unknown", coverage_pct=0.0,
+        structure=s)]))
+
+
+def test_function_names_split_into_known_and_unrecognised():
+    data = scenario(
+        '<calculationViews><calculationView xsi:type="Calculation:ProjectionView" id="P">'
+        '<calculatedViewAttributes>'
+        '<calculatedViewAttribute id="A" expressionLanguage="COLUMN_ENGINE">'
+        '<formula>if(myfunc("C") = 1, rtrim("D"), 0)</formula></calculatedViewAttribute>'
+        '<calculatedViewAttribute id="B" expressionLanguage="COLUMN_ENGINE">'
+        '<formula>weird_fn("C", midstr("D", 1, 2)</formula></calculatedViewAttribute>'
+        '</calculatedViewAttributes></calculationView></calculationViews>')
+    report = aggregate([FileFacts(suffix=".calculationview", parse_status="partial",
+                                  view_type="graphical", coverage_pct=50.0,
+                                  structure=scan_structure(data))])
+    assert report["functions"] == {
+        "known": {"parsed": {"if": 1, "rtrim": 1}, "from_unparsed_text": {"midstr": 1}},
+        "unrecognised": {"parsed": {"myfunc": 1}, "from_unparsed_text": {"weird_fn": 1}},
+    }
+    text = format_text(report)
+    assert "== Unrecognised function names (parsed expressions; review before sharing) ==\nmyfunc: 1" in text
+
+
+def test_known_function_catalogue_covers_the_basics():
+    assert {"if", "case", "isnull", "leftstr", "midstr", "daysbetween", "coalesce", "match",
+            "in", "component", "format"} <= KNOWN_FUNCTIONS
+    assert all(re.fullmatch(r"[a-z_][a-z0-9_]*", name) for name in KNOWN_FUNCTIONS)
+
+
+NO_LOGICAL_MODEL = ('<?xml version="1.0"?><Calculation:scenario '
+                    'xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" '
+                    'id="SHARED_ID"><dataSources/></Calculation:scenario>')
+
+
+def test_duplicate_ids_count_failed_views_with_a_real_id(tmp_path):
+    for pkg in ("p1", "p2"):
+        (tmp_path / pkg).mkdir()
+        (tmp_path / pkg / f"FILE_{pkg}.calculationview").write_text(NO_LOGICAL_MODEL)
+    (tmp_path / "p1" / "SAME.calculationview").write_bytes(b"not xml")
+    (tmp_path / "p2" / "SAME.calculationview").write_text(
+        '<Calculation:scenario xmlns:Calculation="urn:x"/>')   # no id: falls back to the stem
+    report = json.loads(run_audit(tmp_path, "json"))
+    assert report["warning_codes"]["MISSING_LOGICAL_MODEL"] == 3   # incl. the id-less one
+    assert report["files"]["parse_status"] == {"failed": 4}
+    assert report["duplicate_view_ids"] == {"ids_shared": 1, "files_involved": 2,
+                                            "ids_across_packages": 1}
+
+
+def test_file_facts_id_from_stem(tmp_path):
+    cases = {"A.calculationview": NO_LOGICAL_MODEL, "B.calculationview": "garbage",
+             "C.calculationview": "<other id='X'/>", "D.calculationview": "<scenario id=''/>"}
+    for name, body in cases.items():
+        (tmp_path / name).write_text(body)
+    got = {name: file_facts(tmp_path / name, tmp_path).id_from_stem for name in cases}
+    assert got == {"A.calculationview": False, "B.calculationview": True,
+                   "C.calculationview": True, "D.calculationview": True}

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Leak-test fixture for the structure-only audit (M4). Every place a business string can
      live carries a LEAKCANARY sentinel; the audit output must never contain one. -->
-<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" schemaVersion="2.3" id="LEAKCANARY_VIEW" applyPrivilegeType="NONE" visibility="internal" calculationScenarioType="TREE_BASED" dataCategory="CUBE" executionSemantic="UNDEFINED" outputViewType="Aggregation" defaultClient="$$LEAKCANARY_CLIENT$$">
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" xmlns:lc="urn:leakcanary:ns" lc:note="LEAKCANARY_NS_VALUE" schemaVersion="2.3" id="LEAKCANARY_VIEW" applyPrivilegeType="NONE" visibility="internal" calculationScenarioType="TREE_BASED" dataCategory="CUBE" executionSemantic="UNDEFINED" outputViewType="Aggregation" defaultClient="$$LEAKCANARY_CLIENT$$">
   <origin/>
   <descriptions defaultDescription="LeakCanary_view_description"/>
   <localVariables>

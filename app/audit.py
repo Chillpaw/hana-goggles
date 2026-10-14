@@ -5,8 +5,9 @@ per-file facts into a report dict (pure), and `format_text` / `format_json` prin
 
 Never printed: file names, paths, ids, names, column names, descriptions, literals,
 expressions, warning messages, parameter defaults. Only counts, fixed codes, XML tag and
-attribute names, namespace URIs, `xsi:type` values, allow-listed enum values,
-resourceUri shapes and column-engine function names.
+attribute names, SAP/W3C namespace URIs, `xsi:type` values, allow-listed enum values,
+resourceUri shapes and column-engine function names (known catalogue names apart from
+unrecognised ones, which the reader reviews before sharing).
 """
 from __future__ import annotations
 
@@ -17,18 +18,33 @@ from pathlib import Path
 
 from app.ingest.scan import VIEW_SUFFIXES, find_view_files
 from app.ir.models import IRWarning, ViewType
-from app.parsers.audit_scan import FileStructure, scan_structure
+from app.parsers.audit_scan import OTHER, FileStructure, scan_structure
 from app.parsers.dispatch import parse_bytes
 
 AUDIT_FORMAT_VERSION = 1
 FORMATS = ("text", "json")
 COVERAGE_BUCKETS = ("0", "1-49", "50-89", "90-99", "100")
 
+# HANA column-engine function names reported by name in the "known" lists. Anything else a
+# formula calls is reported as unrecognised for the reader to check before sharing. This
+# catalogue grows from audit reports brought back from work (and later from the codegen
+# function map).
+KNOWN_FUNCTIONS = frozenset({
+    "if", "case", "isnull", "coalesce", "in", "match",
+    "leftstr", "rightstr", "midstr", "strlen", "instr", "lower", "upper",
+    "trim", "ltrim", "rtrim", "replace", "concat", "string", "format",
+    "int", "integer", "decimal", "double", "float",
+    "date", "time", "longdate", "seconddate", "now", "daysbetween", "secondsbetween",
+    "adddays", "addmonths", "component",
+    "abs", "round", "ceil", "floor", "sign", "sqrt", "power", "max", "min",
+})
+
 
 @dataclass
 class FileFacts:
     """One file's audit facts. `view_id` and `package_path` are used only to count
-    duplicate ids; they never reach the report."""
+    duplicate ids; they never reach the report. `id_from_stem` marks files whose view id
+    is the file-name fallback (no root id, not well-formed, not a scenario, crash)."""
     suffix: str
     parse_status: str
     view_type: str
@@ -37,6 +53,8 @@ class FileFacts:
     view_id: str = ""
     package_path: str | None = None
     structure: FileStructure | None = None   # None when the file could not be read
+    unknown_elements: Counter = field(default_factory=Counter)   # (parent, child) from the parser
+    id_from_stem: bool = True
 
 
 def collect(folder: Path) -> tuple[list[FileFacts], list[str]]:
@@ -58,16 +76,23 @@ def file_facts(path: Path, root: Path) -> FileFacts:
     except OSError:
         return FileFacts(suffix=suffix, parse_status="failed", view_type=ViewType.UNKNOWN.value,
                          coverage_pct=0.0, warning_codes=["READ_ERROR"], package_path=package_path)
-    result = parse_bytes(data, file_name=path.name, package_path=package_path)
+    unknown: Counter = Counter()
+    result = parse_bytes(data, file_name=path.name, package_path=package_path, unknown=unknown)
+    structure = scan_structure(data)
+    codes = [w.code for w in result.warnings]
+    id_from_root = (structure.root_tag == "scenario" and structure.root_has_id
+                    and "PARSER_CRASH" not in codes)
     return FileFacts(
         suffix=suffix,
         parse_status=result.view.parse_status.value,
         view_type=result.view.view_type.value,
         coverage_pct=result.view.coverage_pct,
-        warning_codes=[w.code for w in result.warnings],
+        warning_codes=codes,
         view_id=result.view.id,
         package_path=package_path,
-        structure=scan_structure(data),
+        structure=structure,
+        unknown_elements=unknown,
+        id_from_stem=not id_from_root,
     )
 
 
@@ -75,7 +100,7 @@ def _suffix(name: str) -> str:
     for suffix in VIEW_SUFFIXES:
         if name.lower().endswith(suffix):
             return name[-len(suffix):]   # as written, so case variants show up
-    return "<other>"
+    return OTHER
 
 
 def coverage_bucket(pct: float) -> str:
@@ -101,6 +126,10 @@ def aggregate(facts: list[FileFacts], scan_warning_codes: list[str] | None = Non
         return counter
 
     histogram = Counter(coverage_bucket(f.coverage_pct) for f in facts)
+    unknown: Counter = Counter()
+    for f in facts:
+        unknown.update(f.unknown_elements)
+    parsed, unparsed = total("functions_parsed"), total("functions_unparsed")
     return {
         "audit_format_version": AUDIT_FORMAT_VERSION,
         "files": {
@@ -127,19 +156,26 @@ def aggregate(facts: list[FileFacts], scan_warning_codes: list[str] | None = Non
         "resource_uri_shapes": _nested(total("resource_uri_shapes")),
         "expressions": _plain(total("expressions")),
         "functions": {
-            "parsed": _plain(total("functions_parsed")),
-            "from_unparsed_text": _plain(total("functions_unparsed")),
+            "known": {"parsed": _plain(_known(parsed, True)),
+                      "from_unparsed_text": _plain(_known(unparsed, True))},
+            "unrecognised": {"parsed": _plain(_known(parsed, False)),
+                             "from_unparsed_text": _plain(_known(unparsed, False))},
         },
-        "unknown_elements": _nested(total("unknown_elements")),
+        "unknown_elements": _nested(unknown),
     }
+
+
+def _known(counter: Counter, known: bool) -> Counter:
+    return Counter({name: n for name, n in counter.items() if (name in KNOWN_FUNCTIONS) == known})
 
 
 def _duplicates(facts: list[FileFacts]) -> dict:
     """Counts only: how many ids are shared by more than one file, and how many of those
-    span more than one package (Task 3 assumes ids are unique across the folder)."""
+    span more than one package (Task 3 assumes ids are unique across the folder). Files
+    whose id is the file-name fallback are left out; failed views with a real id count."""
     packages: dict[str, list[str | None]] = {}
     for f in facts:
-        if f.structure is not None and f.parse_status != "failed":
+        if not f.id_from_stem:
             packages.setdefault(f.view_id, []).append(f.package_path)
     groups = [p for p in packages.values() if len(p) > 1]
     return {
@@ -166,9 +202,12 @@ def format_json(report: dict) -> str:
 
 _TEXT_INTRO = (
     "CalcView audit: structure only.",
-    "Contains counts, XML tag and attribute names, namespace URIs, xsi:type values,",
+    "Contains counts, XML tag and attribute names, SAP/W3C namespace URIs, xsi:type values,",
     "allow-listed enum values, resourceUri shapes and function names. No file names,",
     "paths, ids, names, descriptions, literals, expressions or warning messages.",
+    "Before sharing, review: element and attribute names outside SAP namespaces, xsi:type",
+    "values, enum values and the unrecognised function names. Anything that is not a",
+    "schema word should be removed or reported to the developer instead.",
 )
 
 
@@ -202,9 +241,15 @@ def format_text(report: dict) -> str:
                              report["enum_values"], " = ")
     lines += _nested_section("resourceUri shapes (where: shape)", report["resource_uri_shapes"], ": ")
     lines += _section("Expressions", report["expressions"])
-    lines += _section("Column-engine functions (parsed expressions)", report["functions"]["parsed"])
-    lines += _section("Column-engine functions (unparsed text; review before sharing)",
-                      report["functions"]["from_unparsed_text"])
+    functions = report["functions"]
+    lines += _section("Known column-engine functions (parsed expressions)",
+                      functions["known"]["parsed"])
+    lines += _section("Known column-engine functions (unparsed text)",
+                      functions["known"]["from_unparsed_text"])
+    lines += _section("Unrecognised function names (parsed expressions; review before sharing)",
+                      functions["unrecognised"]["parsed"])
+    lines += _section("Unrecognised function names (unparsed text; review before sharing)",
+                      functions["unrecognised"]["from_unparsed_text"])
     lines += _nested_section("UNKNOWN_ELEMENT (parent > child)", report["unknown_elements"], " > ")
     return "\n".join(lines) + "\n"
 

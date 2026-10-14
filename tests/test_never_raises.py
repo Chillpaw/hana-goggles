@@ -30,7 +30,7 @@ def test_every_truncation_of_the_main_fixture_returns_a_result():
 
 
 def test_internal_bug_becomes_a_parser_crash_warning(monkeypatch):
-    def boom(root, view):
+    def boom(root, view, **_kwargs):
         raise RuntimeError("simulated bug")
 
     monkeypatch.setattr(dispatch, "parse_graphical", boom)

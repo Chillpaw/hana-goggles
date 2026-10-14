@@ -6,6 +6,7 @@ not depend on namespace prefixes or URIs. Anything not modelled raises a warning
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 from lxml import etree
 
@@ -48,7 +49,6 @@ KNOWN_LOGICAL_MODEL_CHILDREN = {
 # Containers that may appear empty inside deferred blocks without meaning anything.
 EMPTY_CONTAINER_PARTS = {"tableProxies", "joins", "layout", "shapes", "shape", "upperLeftCorner", "rectangleSize"}
 # Known children per element, checked by _check_children (UNKNOWN_ELEMENT otherwise).
-# Module-level so the structure audit (app/parsers/audit_scan.py) checks the same sets.
 ROOT_CHILDREN = HANDLED_ROOT_CHILDREN | IGNORED_ROOT_CHILDREN
 VARIABLE_CHILDREN = {"descriptions", "variableProperties"}
 VARIABLE_PROPERTIES_CHILDREN = {"valueDomain", "selection", "defaultRange"}
@@ -67,13 +67,16 @@ DEFERRED_LOGICAL_MODEL_BLOCKS = {
 }
 
 
-def parse_graphical(root: etree._Element, view: View) -> ParseResult:
-    return _Builder(root, view).build()
+def parse_graphical(root: etree._Element, view: View, *, unknown: Counter | None = None) -> ParseResult:
+    """`unknown`, when given, collects (parent, child) local-name pairs for every
+    UNKNOWN_ELEMENT warning (used by the structure audit; never part of the IR)."""
+    return _Builder(root, view, unknown).build()
 
 
 class _Builder:
-    def __init__(self, root: etree._Element, view: View):
+    def __init__(self, root: etree._Element, view: View, unknown: Counter | None = None):
         self.root = root
+        self.unknown = unknown
         self.view = view
         self.vid = view.id
         self.nodes: dict[str, Node] = {}  # keyed by the id used in "#ref" attributes
@@ -395,6 +398,8 @@ class _Builder:
             if x.local(c) not in known:
                 if node is not None:
                     node.understood = False
+                if self.unknown is not None:
+                    self.unknown[(x.local(el), x.local(c))] += 1
                 self.warn("UNKNOWN_ELEMENT", f"<{x.local(c)}> inside <{x.local(el)}> is not modelled",
                           el=c, node_id=node.id if node is not None else None)
 

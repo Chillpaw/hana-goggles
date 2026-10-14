@@ -4,8 +4,10 @@
 and `node` columns are query summaries. Annotations have no foreign key on purpose: they
 must outlive the view or node they describe (they are marked stale instead).
 
-One connection per Store. sqlite3 connections are not shared across threads, so callers
-open a Store per unit of work (e.g. per request) and close it, ideally with `with`.
+One connection per Store: open a Store per unit of work (e.g. one per request), close it
+(ideally with `with`) and never use one Store from two threads at once. The connection is
+made with check_same_thread=False only because FastAPI may run a yield dependency's setup
+and teardown on different threads; that is sequential use, not sharing.
 """
 from __future__ import annotations
 
@@ -17,12 +19,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app.ir.models import Annotation, ParseResult, Project, ViewSummary
+from app.ir.models import Annotation, Node, ParseResult, Project, ViewSummary
 
 if TYPE_CHECKING:  # the IR layer does not import ingest at runtime
     from app.ingest.scan import ScannedView
 
 SCHEMA_VERSION = 1
+BUSY_TIMEOUT_MS = 5000
+_SAVEPOINT = "store_nested"
 
 _SCHEMA = """
 CREATE TABLE project (
@@ -66,13 +70,24 @@ def raw_hash(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def node_raw_hashes(nodes: Iterable[Node]) -> dict[str, str]:
+    """node id -> sha256 of its `raw`. A malformed file can repeat a node id; then every
+    raw sharing the id is hashed together (joined with NUL), in order, so any change to
+    any of them is seen."""
+    raws: dict[str, list[str]] = {}
+    for node in nodes:
+        raws.setdefault(node.id, []).append(node.raw)
+    return {node_id: raw_hash("\0".join(parts)) for node_id, parts in raws.items()}
+
+
 class Store:
     def __init__(self, path: Path) -> None:
         # isolation_level=None: no implicit transactions; `transaction()` issues BEGIN itself.
-        self.conn = sqlite3.connect(str(path), isolation_level=None)
+        self.conn = sqlite3.connect(str(path), isolation_level=None, check_same_thread=False)
         try:
             self.conn.row_factory = sqlite3.Row
             self.conn.execute("PRAGMA foreign_keys = ON")
+            self.conn.execute(f"PRAGMA busy_timeout = {int(BUSY_TIMEOUT_MS)}")
             self._ensure_schema(Path(path))
         except BaseException:
             self.conn.close()
@@ -91,17 +106,29 @@ class Store:
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
-        """Commit on success, roll back on any exception. Nested use joins the outer one."""
+        """Commit on success, roll back on any exception (including a failed COMMIT).
+
+        The outer block takes the write lock up front (BEGIN IMMEDIATE). A nested block is
+        a savepoint, so it is atomic on its own and its failure rolls back only itself."""
         if self.conn.in_transaction:
-            yield
+            self.conn.execute(f"SAVEPOINT {_SAVEPOINT}")
+            try:
+                yield
+            except BaseException:
+                if self.conn.in_transaction:
+                    self.conn.execute(f"ROLLBACK TO {_SAVEPOINT}")
+                    self.conn.execute(f"RELEASE {_SAVEPOINT}")
+                raise
+            self.conn.execute(f"RELEASE {_SAVEPOINT}")
             return
-        self.conn.execute("BEGIN")
+        self.conn.execute("BEGIN IMMEDIATE")
         try:
             yield
+            self.conn.execute("COMMIT")
         except BaseException:
-            self.conn.execute("ROLLBACK")
+            if self.conn.in_transaction:  # a failed COMMIT leaves the transaction open
+                self.conn.execute("ROLLBACK")
             raise
-        self.conn.execute("COMMIT")
 
     def _ensure_schema(self, path: Path) -> None:
         version = self.conn.execute("PRAGMA user_version").fetchone()[0]
@@ -151,13 +178,17 @@ class Store:
                  str(view.view_type), str(view.data_category), str(view.parse_status),
                  view.coverage_pct, len(result.nodes), len(result.warnings),
                  result.model_dump_json()))
-            # The parser does not de-duplicate node ids, so a malformed file could repeat
-            # one; the summary row keeps the first (the full result keeps every node).
+            # One row per node id: a repeated id keeps its first node's name and type, and
+            # its hash covers every raw sharing the id (the full result keeps every node).
+            hashes = node_raw_hashes(result.nodes)
+            first: dict[str, Node] = {}
+            for n in result.nodes:
+                first.setdefault(n.id, n)
             self.conn.executemany(
-                "INSERT OR IGNORE INTO node (id, view_id, name, node_type, understood, raw_hash) "
+                "INSERT INTO node (id, view_id, name, node_type, understood, raw_hash) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                [(n.id, view.id, n.name, str(n.node_type), int(n.understood), raw_hash(n.raw))
-                 for n in result.nodes])
+                [(n.id, view.id, n.name, str(n.node_type), int(n.understood), hashes[n.id])
+                 for n in first.values()])
 
     def delete_view(self, view_id: str) -> None:
         self.conn.execute("DELETE FROM view WHERE id = ?", (view_id,))
@@ -168,6 +199,12 @@ class Store:
     def view_locations(self) -> dict[str, str]:
         """id -> rel_path."""
         return {r["id"]: r["rel_path"] for r in self.conn.execute("SELECT id, rel_path FROM view")}
+
+    def raw_result_json(self, view_id: str) -> str | None:
+        """The stored ParseResult JSON as text, not validated (old rows may predate a
+        model change)."""
+        row = self.conn.execute("SELECT result_json FROM view WHERE id = ?", (view_id,)).fetchone()
+        return row["result_json"] if row else None
 
     def list_views(self) -> list[ViewSummary]:
         rows = self.conn.execute(f"SELECT {_SUMMARY_COLUMNS} FROM view ORDER BY id")
@@ -205,15 +242,19 @@ class Store:
         return saved
 
     def mark_stale(self, target_ids: Iterable[str], reason: str) -> int:
-        """Mark existing annotations stale; ids without an annotation are ignored.
-        Returns how many annotations were marked."""
+        """Mark existing annotations stale with `reason` (an already-stale one gets the new
+        reason); ids without an annotation are ignored. Returns how many annotations were
+        newly marked (not stale before)."""
         marked = 0
         with self.transaction():
             for target_id in target_ids:
                 cursor = self.conn.execute(
-                    "UPDATE annotation SET stale = 1, stale_reason = ? WHERE target_id = ?",
-                    (reason, target_id))
+                    "UPDATE annotation SET stale = 1, stale_reason = ? "
+                    "WHERE target_id = ? AND stale = 0", (reason, target_id))
                 marked += cursor.rowcount
+                self.conn.execute(
+                    "UPDATE annotation SET stale_reason = ? WHERE target_id = ? AND stale = 1",
+                    (reason, target_id))
         return marked
 
     def list_annotations(self) -> list[Annotation]:

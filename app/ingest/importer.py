@@ -5,6 +5,11 @@ replaces the stored result and marks annotations stale where their target change
 the view annotation ("view file changed"), node annotations whose node `raw` hash
 changed ("node changed") or whose node disappeared ("node removed"). Views no longer in
 the folder are deleted, and their annotations kept but marked stale ("view removed").
+
+An unchanged file is still re-parsed by the scan; if the new result differs from the
+stored JSON (a parser fix, an IR model change, or the file moved package) the row is
+rewritten and counted as `reparsed`. The file did not change, so annotations stay valid,
+except node annotations whose node no longer exists ("node removed").
 The whole import is one transaction. Dependencies are recomputed after every import
 and returned, never stored.
 """
@@ -17,7 +22,7 @@ from pydantic import BaseModel, Field
 from app.enrich.deps import resolve_dependencies
 from app.ingest.scan import ScannedView, scan_folder
 from app.ir.models import Estate, IRWarning, ParseStatus, Severity
-from app.ir.store import Store, raw_hash
+from app.ir.store import Store, node_raw_hashes
 
 VIEW_FILE_CHANGED = "view file changed"
 NODE_CHANGED = "node changed"
@@ -29,8 +34,9 @@ class ImportReport(BaseModel):
     added: int = 0
     changed: int = 0
     unchanged: int = 0
+    reparsed: int = 0  # same file, different parse result (parser or model changed, or moved)
     removed: int = 0
-    stale_annotations: int = 0  # annotations marked stale by this import
+    stale_annotations: int = 0  # annotations newly marked stale by this import
     failed: int = 0  # stored views from this folder whose parse failed
     estate: Estate = Field(default_factory=Estate)
     warnings: list[IRWarning] = Field(default_factory=list)  # scan problems, duplicate ids
@@ -54,11 +60,14 @@ def import_folder(store: Store, folder: Path, name: str | None = None) -> Import
                 store.upsert_view(item)
                 report.added += 1
             elif old_hash == view.file_hash:
-                # Same content; refresh the row only if the file moved (package_path
-                # feeds dependency matching). Annotations stay valid.
-                if stored_locations.get(view.id) != item.rel_path:
-                    store.upsert_view(item)
-                report.unchanged += 1
+                # Compared as raw text: an old row may not validate against today's models.
+                if store.raw_result_json(view.id) != item.result.model_dump_json():
+                    report.stale_annotations += _replace_reparsed(store, item)
+                    report.reparsed += 1
+                else:
+                    if stored_locations.get(view.id) != item.rel_path:
+                        store.upsert_view(item)  # renamed in place: same result, new rel_path
+                    report.unchanged += 1
             else:
                 report.stale_annotations += _replace_changed(store, item)
                 report.changed += 1
@@ -83,9 +92,7 @@ def import_folder(store: Store, folder: Path, name: str | None = None) -> Import
 def _replace_changed(store: Store, item: ScannedView) -> int:
     view_id = item.result.view.id
     old_nodes = store.node_hashes(view_id)
-    new_nodes: dict[str, str] = {}
-    for node in item.result.nodes:
-        new_nodes.setdefault(node.id, raw_hash(node.raw))
+    new_nodes = node_raw_hashes(item.result.nodes)
     store.upsert_view(item)
     changed = [nid for nid, h in old_nodes.items() if nid in new_nodes and new_nodes[nid] != h]
     removed = [nid for nid in old_nodes if nid not in new_nodes]
@@ -94,11 +101,20 @@ def _replace_changed(store: Store, item: ScannedView) -> int:
             + store.mark_stale(sorted(removed), NODE_REMOVED))
 
 
+def _replace_reparsed(store: Store, item: ScannedView) -> int:
+    view_id = item.result.view.id
+    old_nodes = store.node_hashes(view_id)
+    new_nodes = {node.id for node in item.result.nodes}
+    store.upsert_view(item)
+    return store.mark_stale(sorted(set(old_nodes) - new_nodes), NODE_REMOVED)
+
+
 def _unique(scanned: list[ScannedView], warnings: list[IRWarning]) -> list[ScannedView]:
-    """Keep the first file per view id in rel_path order (the scan's order); warn on the rest."""
+    """Keep one file per view id, a parsed one before a failed one, then the first by
+    rel_path (as the estate does); warn on the rest."""
     kept: dict[str, ScannedView] = {}
     dropped: dict[str, list[str]] = {}
-    for item in sorted(scanned, key=lambda s: s.rel_path):
+    for item in sorted(scanned, key=_preference):
         view_id = item.result.view.id
         if view_id in kept:
             dropped.setdefault(view_id, []).append(item.rel_path)
@@ -110,3 +126,7 @@ def _unique(scanned: list[ScannedView], warnings: list[IRWarning]) -> list[Scann
             message=(f"view id {view_id!r} is defined in {len(rel_paths) + 1} files; "
                      f"stored {kept[view_id].rel_path}, skipped {', '.join(rel_paths)}")))
     return list(kept.values())
+
+
+def _preference(item: ScannedView) -> tuple[bool, str]:
+    return (item.result.view.parse_status is ParseStatus.FAILED, item.rel_path)

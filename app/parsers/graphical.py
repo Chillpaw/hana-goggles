@@ -121,7 +121,7 @@ class _Builder:
 
         top_ref = lm.get("id") or ""
         top = self.nodes.get(top_ref)
-        self.nodes[OUTPUT_NODE_NAME] = node
+        self._add_node(OUTPUT_NODE_NAME, node, lm)
         if top is None:
             node.understood = False
             self.warn("UNRESOLVED_INPUT", f"logicalModel reads #{top_ref}, which is not in this view",
@@ -204,7 +204,7 @@ class _Builder:
                 schema_name, name = None, uri.rpartition("/")[2] if uri else ds_id
             self.sources.append(DataSource(id=node_id, kind=kind, schema_name=schema_name, name=name,
                                            resource_uri=uri))
-            self.nodes[ds_id] = ds_node
+            self._add_node(ds_id, ds_node, ds)
 
     def _parse_variable_mappings(self) -> None:
         for m in x.children(x.child(self.root, "variableMappings"), "mapping"):
@@ -242,8 +242,16 @@ class _Builder:
                             raw=x.raw(cv), understood=False)
             else:
                 node = self._parse_node(cv, node_id, name, node_type)
-            self.nodes[name] = node
+            self._add_node(name, node, cv)
             self._pending_inputs.extend((node, inp) for inp in x.children(cv, "input"))
+
+    def _add_node(self, key: str, node: Node, el: etree._Element) -> None:
+        # A repeated id still replaces the earlier node (unchanged behaviour), but visibly.
+        if key in self.nodes:
+            self.warn("DUPLICATE_NODE_ID",
+                      f"id {key!r} is used by more than one node (data source, calculation view "
+                      f"or the {OUTPUT_NODE_NAME} output); only the last is kept", el=el, node_id=node.id)
+        self.nodes[key] = node
 
     def _parse_node(self, cv: etree._Element, node_id: str, name: str, node_type: NodeType) -> Node:
         node = Node(id=node_id, view_id=self.vid, node_type=node_type, name=name, raw=x.raw(cv))

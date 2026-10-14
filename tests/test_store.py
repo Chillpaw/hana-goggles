@@ -5,8 +5,8 @@ import pytest
 from conftest import FIXTURES, MAIN
 
 from app.ingest.scan import scan_folder
-from app.ir.models import Annotation, SignoffStatus, TargetKind
-from app.ir.store import SCHEMA_VERSION, Store, StoreVersionError
+from app.ir.models import Annotation, Node, NodeType, SignoffStatus, TargetKind
+from app.ir.store import SCHEMA_VERSION, Store, StoreVersionError, node_raw_hashes, raw_hash
 
 VIEW = "GENERIC_TAX_REPORTING_CUBE"
 
@@ -102,6 +102,10 @@ def test_annotation_save_load_and_stale(tmp_path):
         assert store.mark_stale([f"{VIEW}/Join_1", "missing"], "node changed") == 1
         stale = store.get_annotation(f"{VIEW}/Join_1")
         assert stale.stale is True and stale.stale_reason == "node changed"
+        # already stale: not counted again, but the reason is updated
+        assert store.mark_stale([f"{VIEW}/Join_1"], "view removed") == 0
+        stale = store.get_annotation(f"{VIEW}/Join_1")
+        assert stale.stale is True and stale.stale_reason == "view removed"
 
         store.save_annotation(stale)  # saving clears stale
         cleared = store.get_annotation(f"{VIEW}/Join_1")
@@ -128,3 +132,60 @@ def test_transaction_rolls_back(tmp_path):
                 store.upsert_view(scanned)
                 raise RuntimeError("boom")
         assert store.list_views() == []
+
+
+def test_nested_transaction_is_a_savepoint(tmp_path):
+    scanned = _scanned(tmp_path)
+    with Store(tmp_path / "p.db") as store:
+        with store.transaction():
+            store.set_project("Outer", "/f")
+            with pytest.raises(RuntimeError):
+                with store.transaction():
+                    store.upsert_view(scanned)
+                    raise RuntimeError("inner fails")
+        assert store.list_views() == []  # inner block rolled back alone
+        assert store.get_project().name == "Outer"  # outer block committed
+
+
+def test_failed_commit_rolls_back_and_store_stays_usable(tmp_path):
+    db = tmp_path / "p.db"
+    scanned = _scanned(tmp_path)
+    store = Store(db)
+    store.conn.execute("PRAGMA busy_timeout = 50")
+    reader = sqlite3.connect(db, isolation_level=None)
+    try:
+        reader.execute("BEGIN")
+        reader.execute("SELECT * FROM view").fetchall()  # holds a shared lock
+        with pytest.raises(sqlite3.OperationalError):
+            with store.transaction():
+                store.upsert_view(scanned)
+        assert store.conn.in_transaction is False
+        reader.execute("ROLLBACK")
+
+        with store.transaction():
+            store.upsert_view(scanned)
+    finally:
+        reader.close()
+        store.close()
+    with Store(db) as reopened:
+        assert [v.id for v in reopened.list_views()] == [VIEW]
+
+
+def test_busy_timeout_set(tmp_path):
+    with Store(tmp_path / "p.db") as store:
+        assert store.conn.execute("PRAGMA busy_timeout").fetchone()[0] == 5000
+
+
+def test_repeated_node_ids_hash_together(tmp_path):
+    def n(raw):
+        return Node(id="V/N", view_id="V", node_type=NodeType.OPAQUE, name="N", raw=raw)
+
+    assert node_raw_hashes([n("a")]) == {"V/N": raw_hash("a")}
+    assert node_raw_hashes([n("a"), n("b")]) == {"V/N": raw_hash("a\0b")}
+
+    scanned = _scanned(tmp_path)
+    scanned.result.nodes.append(n("extra").model_copy(update={"id": scanned.result.nodes[0].id}))
+    with Store(tmp_path / "p.db") as store:
+        store.upsert_view(scanned)  # no primary-key clash
+        first = scanned.result.nodes[0]
+        assert store.node_hashes(VIEW)[first.id] == raw_hash(first.raw + "\0extra")

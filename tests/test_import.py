@@ -3,6 +3,7 @@ import shutil
 
 import pytest
 from conftest import FIXTURES
+from helpers import node
 
 from app.ingest.importer import import_folder
 from app.ir.models import Annotation, ParseStatus, Severity, TargetKind
@@ -32,6 +33,10 @@ def _edit(path, old, new):
     text = path.read_text(encoding="utf-8")
     assert old in text
     path.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+
+def _filter_text(store, node_name):
+    return node(store.load_result(VIEW), node_name).filters[0].expression.text
 
 
 def _annotate(store, target_id, kind):
@@ -85,8 +90,7 @@ def test_changed_filter_marks_annotations_stale(store, folder):
     assert proj.stale and proj.stale_reason == "node changed"
     assert not store.get_annotation(f"{VIEW}/Join_1").stale
     assert not store.get_annotation(PRODUCER).stale
-    filters = [n for n in store.load_result(VIEW).nodes if n.name == "Projection_1"][0].filters
-    assert "2024" in filters[0].expression.text
+    assert "2024" in _filter_text(store, "Projection_1")
 
 
 def test_removed_node(store, folder):
@@ -142,13 +146,82 @@ def test_duplicate_view_id_first_by_rel_path(store, folder):
     assert summary.package_path == "a"
 
 
+def test_duplicate_view_id_prefers_parsed_over_failed(store, folder):
+    (folder / "a").mkdir()
+    (folder / "a" / f"{PRODUCER}.calculationview").write_bytes(b"garbage")  # failed, id = stem
+    (folder / "b").mkdir()
+    shutil.move(folder / f"{PRODUCER}.calculationview", folder / "b")
+    report = import_folder(store, folder)
+    assert [w.code for w in report.warnings] == ["DUPLICATE_VIEW_ID"]
+    summary = {v.id: v for v in store.list_views()}[PRODUCER]
+    assert summary.rel_path == f"b/{PRODUCER}.calculationview"
+    assert summary.parse_status is not ParseStatus.FAILED
+    assert report.failed == 0
+
+
+def test_renamed_file_refreshes_rel_path(store, folder):
+    import_folder(store, folder)
+    (folder / f"{PRODUCER}.calculationview").rename(folder / "OTHER_NAME.calculationview")
+    report = import_folder(store, folder)  # the view id comes from the XML, not the file name
+    assert (report.unchanged, report.reparsed) == (2, 0)
+    summary = {v.id: v for v in store.list_views()}[PRODUCER]
+    assert summary.rel_path == "OTHER_NAME.calculationview"
+
+
+def test_unchanged_file_with_different_result_is_reparsed(store, folder, tmp_path):
+    import sqlite3
+
+    import_folder(store, folder)
+    _annotate(store, VIEW, TargetKind.VIEW)
+    _annotate(store, f"{VIEW}/Join_1", TargetKind.NODE)
+    _annotate(store, f"{VIEW}/GONE_1", TargetKind.NODE)
+    good = store.raw_result_json(VIEW)
+    # Simulate an older parser: different (even invalid-for-today) JSON and an extra node row.
+    old_json = good.replace('"Join_1"', '"Join_X"').replace('"coverage_pct":100.0', '"legacy":1')
+    store.conn.execute("UPDATE view SET result_json = ? WHERE id = ?", (old_json, VIEW))
+    store.conn.execute("INSERT INTO node (id, view_id, name, node_type, understood, raw_hash) "
+                       "VALUES (?, ?, 'GONE_1', 'projection', 1, 'x')", (f"{VIEW}/GONE_1", VIEW))
+
+    report = import_folder(store, folder)
+    assert (report.changed, report.unchanged, report.reparsed) == (0, 1, 1)
+    assert store.raw_result_json(VIEW) == good
+    assert report.stale_annotations == 1
+    gone = store.get_annotation(f"{VIEW}/GONE_1")
+    assert gone.stale and gone.stale_reason == "node removed"
+    assert not store.get_annotation(VIEW).stale
+    assert not store.get_annotation(f"{VIEW}/Join_1").stale
+
+
+def test_already_stale_annotation_kept_on_unchanged_view(store, folder):
+    import_folder(store, folder)
+    _annotate(store, f"{VIEW}/Projection_1", TargetKind.NODE)
+    _edit(folder / MAIN_FILE, FILTER, "<filter>(&quot;COL_3&quot; = '2024')</filter>")
+    import_folder(store, folder)
+    report = import_folder(store, folder)
+    assert report.unchanged == 2 and report.stale_annotations == 0
+    ann = store.get_annotation(f"{VIEW}/Projection_1")
+    assert ann.stale and ann.stale_reason == "node changed"
+
+
+def test_stale_count_is_newly_marked_only(store, folder):
+    import_folder(store, folder)
+    _annotate(store, VIEW, TargetKind.VIEW)
+    _edit(folder / MAIN_FILE, FILTER, "<filter>(&quot;COL_3&quot; = '2024')</filter>")
+    assert import_folder(store, folder).stale_annotations == 1
+    (folder / MAIN_FILE).unlink()
+    report = import_folder(store, folder)
+    assert report.removed == 1 and report.stale_annotations == 0
+    assert store.get_annotation(VIEW).stale_reason == "view removed"
+
+
 def test_moved_file_refreshes_location_without_staling(store, folder):
     import_folder(store, folder)
     _annotate(store, PRODUCER, TargetKind.VIEW)
     (folder / "pkg").mkdir()
     shutil.move(folder / f"{PRODUCER}.calculationview", folder / "pkg")
     report = import_folder(store, folder)
-    assert (report.added, report.changed, report.unchanged, report.removed) == (0, 0, 2, 0)
+    assert (report.added, report.changed, report.unchanged, report.removed) == (0, 0, 1, 0)
+    assert report.reparsed == 1 and report.stale_annotations == 0
     summary = {v.id: v for v in store.list_views()}[PRODUCER]
     assert summary.package_path == "pkg"
     assert store.load_result(PRODUCER).view.package_path == "pkg"
@@ -179,4 +252,4 @@ def test_failure_rolls_back_whole_import(store, folder, monkeypatch):
         import_folder(store, folder)
     assert sorted(store.view_hashes()) == [VIEW, PRODUCER]
     assert not store.get_annotation(VIEW).stale
-    assert "2024" not in store.load_result(VIEW).nodes[3].filters[0].expression.text
+    assert "2024" not in _filter_text(store, "Projection_1")

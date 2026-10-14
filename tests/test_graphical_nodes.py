@@ -125,3 +125,17 @@ def test_sql_filter_language_comes_from_the_calculation_view():
     assert expression.lang is ExpressionLang.SQL
     assert expression.ast is None
     assert "SQL_EXPR_DEFERRED" in codes(result)
+
+
+def test_repeated_node_id_is_flagged(fixture_bytes):
+    from app.parsers.dispatch import parse_bytes
+
+    # Join_1 renamed to clash with the TABLE_A data source: last one wins, visibly.
+    data = fixture_bytes(MAIN).replace(b'id="Join_1"', b'id="TABLE_A"')
+    result = parse_bytes(data, file_name="GENERIC_TAX_REPORTING_CUBE.calculationview")
+    dupes = [w for w in result.warnings if w.code == "DUPLICATE_NODE_ID"]
+    assert len(dupes) == 1
+    assert dupes[0].node_id == f"{V}/TABLE_A" and dupes[0].line is not None
+    assert node(result, "TABLE_A").node_type is NodeType.JOIN
+    ids = [n.id for n in result.nodes]
+    assert len(ids) == len(set(ids))

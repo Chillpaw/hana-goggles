@@ -71,3 +71,39 @@ def test_invalid_expressions_raise_expr_parse_error(text):
 def test_deep_nesting_raises_expr_parse_error_not_recursion_error():
     with pytest.raises(ExprParseError):
         parse_expression("(" * 5000 + "1" + ")" * 5000)
+
+
+def test_same_operator_chains_flatten():
+    assert parse_expression("1 + 2 + 3") == ExprNode(
+        kind="binary", value="+", args=[num("1"), num("2"), num("3")])
+    assert parse_expression("1 - 2 - 3") == ExprNode(
+        kind="binary", value="-", args=[num("1"), num("2"), num("3")])
+    assert parse_expression('"a" and "b" and "c"') == ExprNode(
+        kind="binary", value="and", args=[col("a"), col("b"), col("c")])
+
+
+def test_mixed_operators_nest_left():
+    assert parse_expression("1 + 2 - 3") == bin_(
+        "-", bin_("+", num("1"), num("2")), num("3"))
+
+
+def test_parenthesised_group_is_preserved():
+    assert parse_expression("(1 + 2) + 3") == bin_(
+        "+", bin_("+", num("1"), num("2")), num("3"))
+
+
+def test_long_sum_parses_and_round_trips_json():
+    node = parse_expression(" + ".join(['"C"'] * 500))
+    assert len(node.args) == 500
+    assert ExprNode.model_validate_json(node.model_dump_json()) == node
+
+
+@pytest.mark.parametrize("text", ["-" * 300 + "1", "not " * 300 + "1"])
+def test_excessive_tree_depth_raises_expr_parse_error(text):
+    with pytest.raises(ExprParseError):
+        parse_expression(text)
+
+
+def test_unary_chain_under_limit_round_trips_json():
+    node = parse_expression("-" * 60 + "1")
+    assert ExprNode.model_validate_json(node.model_dump_json()) == node

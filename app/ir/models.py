@@ -86,7 +86,8 @@ class ParseStatus(StrEnum):
 
 class ExprNode(IRModel):
     """Expression AST. `value` holds the literal text, column name, parameter name,
-    function name (lowercased) or operator, depending on `kind`."""
+    function name (lowercased) or operator, depending on `kind`. A `binary` node may carry
+    more than two args, meaning a left fold of the same operator."""
 
     kind: Literal["string", "number", "column", "param", "call", "binary", "unary"]
     value: str | None = None

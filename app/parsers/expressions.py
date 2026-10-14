@@ -33,6 +33,8 @@ _TOKEN_RE = re.compile(
 _PARAM_RE = re.compile(r"\$\$(\w+)\$\$")
 _CMP_OPS = {"=", "!=", "<>", "<", ">", "<=", ">="}
 
+MAX_DEPTH = 64
+
 Token = tuple[str, str]
 
 
@@ -45,9 +47,21 @@ def parse_expression(text: str) -> ExprNode:
         node = parser.parse_or()
     except RecursionError:
         raise ExprParseError("expression nested too deeply") from None
+    if _tree_depth(node) > MAX_DEPTH:
+        raise ExprParseError(f"expression nests deeper than {MAX_DEPTH} levels")
     if parser.peek() is not None:
         raise ExprParseError(f"unexpected token {parser.peek()[1]!r}")
     return node
+
+
+def _tree_depth(root: ExprNode) -> int:
+    deepest = 0
+    stack = [(root, 1)]
+    while stack:
+        node, depth = stack.pop()
+        deepest = max(deepest, depth)
+        stack.extend((child, depth + 1) for child in node.args)
+    return deepest
 
 
 def _tokenize(text: str) -> list[Token]:
@@ -61,6 +75,14 @@ def _tokenize(text: str) -> list[Token]:
             tokens.append((match.lastgroup, match.group()))
         pos = match.end()
     return tokens
+
+
+def _extend(left: ExprNode, built: bool, op: str, right: ExprNode) -> tuple[ExprNode, bool]:
+    """Append to `left` if this loop built it with the same operator (n-ary left fold)."""
+    if built and left.value == op:
+        left.args.append(right)
+        return left, True
+    return ExprNode(kind="binary", value=op, args=[left, right]), True
 
 
 class _Parser:
@@ -100,14 +122,16 @@ class _Parser:
 
     def parse_or(self) -> ExprNode:
         left = self.parse_and()
+        built = False
         while self.accept_keyword("or"):
-            left = ExprNode(kind="binary", value="or", args=[left, self.parse_and()])
+            left, built = _extend(left, built, "or", self.parse_and())
         return left
 
     def parse_and(self) -> ExprNode:
         left = self.parse_not()
+        built = False
         while self.accept_keyword("and"):
-            left = ExprNode(kind="binary", value="and", args=[left, self.parse_not()])
+            left, built = _extend(left, built, "and", self.parse_not())
         return left
 
     def parse_not(self) -> ExprNode:
@@ -124,14 +148,16 @@ class _Parser:
 
     def parse_additive(self) -> ExprNode:
         left = self.parse_multiplicative()
+        built = False
         while (op := self.accept_op({"+", "-"})) is not None:
-            left = ExprNode(kind="binary", value=op, args=[left, self.parse_multiplicative()])
+            left, built = _extend(left, built, op, self.parse_multiplicative())
         return left
 
     def parse_multiplicative(self) -> ExprNode:
         left = self.parse_unary()
+        built = False
         while (op := self.accept_op({"*", "/"})) is not None:
-            left = ExprNode(kind="binary", value=op, args=[left, self.parse_unary()])
+            left, built = _extend(left, built, op, self.parse_unary())
         return left
 
     def parse_unary(self) -> ExprNode:

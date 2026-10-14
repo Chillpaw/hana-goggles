@@ -1,0 +1,148 @@
+{
+  "view": {
+    "id": "BAD_EXPRESSION_VIEW",
+    "name": "BAD_EXPRESSION_VIEW",
+    "package_path": null,
+    "view_type": "graphical",
+    "data_category": "DEFAULT",
+    "schema_version": "2.3",
+    "file_hash": "f71413ffa3e70008dd7abf804a986b7b59cb9cad48ec66f1136c046d2cf9ae03",
+    "parse_status": "partial",
+    "coverage_pct": 66.7
+  },
+  "nodes": [
+    {
+      "id": "BAD_EXPRESSION_VIEW/TABLE_A",
+      "view_id": "BAD_EXPRESSION_VIEW",
+      "node_type": "datasource",
+      "name": "TABLE_A",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" id=\"TABLE_A\" type=\"DATA_BASE_TABLE\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <columnObject schemaName=\"SCHEMA_1\" columnObjectName=\"TABLE_A\"/>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "BAD_EXPRESSION_VIEW/Projection_1",
+      "view_id": "BAD_EXPRESSION_VIEW",
+      "node_type": "projection",
+      "name": "Projection_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xsi:type=\"Calculation:ProjectionView\" id=\"Projection_1\">\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes>\n        <calculatedViewAttribute datatype=\"INTEGER\" id=\"CC_1\" expressionLanguage=\"COLUMN_ENGINE\">\n          <formula>if(\"COL_1\" = 'X', 1</formula>\n        </calculatedViewAttribute>\n      </calculatedViewAttributes>\n      <input node=\"#TABLE_A\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "BAD_EXPRESSION_VIEW/Projection_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "BAD_EXPRESSION_VIEW/Projection_1/CC_1",
+          "name": "CC_1",
+          "datatype": "INTEGER",
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": {
+            "text": "if(\"COL_1\" = 'X', 1",
+            "lang": "column_engine",
+            "ast": null
+          }
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": false
+    },
+    {
+      "id": "BAD_EXPRESSION_VIEW/Semantics",
+      "view_id": "BAD_EXPRESSION_VIEW",
+      "node_type": "output",
+      "name": "Semantics",
+      "raw": "<logicalModel xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" id=\"Projection_1\">\n    <attributes>\n      <attribute id=\"COL_1\" order=\"1\">\n        <keyMapping columnObjectName=\"Projection_1\" columnName=\"COL_1\"/>\n      </attribute>\n      <attribute id=\"CC_1\" order=\"2\">\n        <keyMapping columnObjectName=\"Projection_1\" columnName=\"CC_1\"/>\n      </attribute>\n    </attributes>\n  </logicalModel>",
+      "columns": [
+        {
+          "id": "BAD_EXPRESSION_VIEW/Semantics/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "BAD_EXPRESSION_VIEW/Semantics/CC_1",
+          "name": "CC_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    }
+  ],
+  "edges": [
+    {
+      "from_node": "BAD_EXPRESSION_VIEW/TABLE_A",
+      "to_node": "BAD_EXPRESSION_VIEW/Projection_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "BAD_EXPRESSION_VIEW/Projection_1",
+      "to_node": "BAD_EXPRESSION_VIEW/Semantics",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_1",
+          "source": "CC_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    }
+  ],
+  "parameters": [],
+  "parameter_mappings": [],
+  "data_sources": [
+    {
+      "id": "BAD_EXPRESSION_VIEW/TABLE_A",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_A",
+      "resource_uri": null,
+      "resolved_view_id": null
+    }
+  ],
+  "warnings": [
+    {
+      "view_id": "BAD_EXPRESSION_VIEW",
+      "node_id": "BAD_EXPRESSION_VIEW/Projection_1",
+      "code": "EXPR_PARSE_FAILED",
+      "message": "Projection_1 column CC_1: unexpected end of expression",
+      "severity": "warning",
+      "line": null
+    }
+  ]
+}

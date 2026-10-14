@@ -1,0 +1,141 @@
+{
+  "view": {
+    "id": "UNKNOWN_TYPE_VIEW",
+    "name": "UNKNOWN_TYPE_VIEW",
+    "package_path": null,
+    "view_type": "graphical",
+    "data_category": "DEFAULT",
+    "schema_version": "2.3",
+    "file_hash": "5fa3aadc84794222992827dd42f11b1a58f308603d633edb3b221f869719aa23",
+    "parse_status": "partial",
+    "coverage_pct": 75.0
+  },
+  "nodes": [
+    {
+      "id": "UNKNOWN_TYPE_VIEW/TABLE_A",
+      "view_id": "UNKNOWN_TYPE_VIEW",
+      "node_type": "datasource",
+      "name": "TABLE_A",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" id=\"TABLE_A\" type=\"DATA_BASE_TABLE\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <columnObject schemaName=\"SCHEMA_1\" columnObjectName=\"TABLE_A\"/>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "UNKNOWN_TYPE_VIEW/Projection_1",
+      "view_id": "UNKNOWN_TYPE_VIEW",
+      "node_type": "projection",
+      "name": "Projection_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xsi:type=\"Calculation:ProjectionView\" id=\"Projection_1\">\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes/>\n      <input node=\"#TABLE_A\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "UNKNOWN_TYPE_VIEW/Projection_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "UNKNOWN_TYPE_VIEW/Fancy_1",
+      "view_id": "UNKNOWN_TYPE_VIEW",
+      "node_type": "opaque",
+      "name": "Fancy_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xsi:type=\"Calculation:FancyNewView\" id=\"Fancy_1\">\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n      </viewAttributes>\n      <input node=\"#Projection_1\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n      </input>\n    </calculationView>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": false
+    },
+    {
+      "id": "UNKNOWN_TYPE_VIEW/Semantics",
+      "view_id": "UNKNOWN_TYPE_VIEW",
+      "node_type": "output",
+      "name": "Semantics",
+      "raw": "<logicalModel xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" id=\"Fancy_1\">\n    <attributes>\n      <attribute id=\"COL_1\" order=\"1\">\n        <keyMapping columnObjectName=\"Fancy_1\" columnName=\"COL_1\"/>\n      </attribute>\n    </attributes>\n  </logicalModel>",
+      "columns": [
+        {
+          "id": "UNKNOWN_TYPE_VIEW/Semantics/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    }
+  ],
+  "edges": [
+    {
+      "from_node": "UNKNOWN_TYPE_VIEW/TABLE_A",
+      "to_node": "UNKNOWN_TYPE_VIEW/Projection_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "UNKNOWN_TYPE_VIEW/Projection_1",
+      "to_node": "UNKNOWN_TYPE_VIEW/Fancy_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "UNKNOWN_TYPE_VIEW/Fancy_1",
+      "to_node": "UNKNOWN_TYPE_VIEW/Semantics",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    }
+  ],
+  "parameters": [],
+  "parameter_mappings": [],
+  "data_sources": [
+    {
+      "id": "UNKNOWN_TYPE_VIEW/TABLE_A",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_A",
+      "resource_uri": null,
+      "resolved_view_id": null
+    }
+  ],
+  "warnings": [
+    {
+      "view_id": "UNKNOWN_TYPE_VIEW",
+      "node_id": "UNKNOWN_TYPE_VIEW/Fancy_1",
+      "code": "UNKNOWN_NODE_TYPE",
+      "message": "calculationView 'Fancy_1' has type 'FancyNewView'; kept as an opaque node",
+      "severity": "warning",
+      "line": 23
+    }
+  ]
+}

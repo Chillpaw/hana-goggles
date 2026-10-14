@@ -1,0 +1,825 @@
+{
+  "view": {
+    "id": "GENERIC_TAX_REPORTING_CUBE",
+    "name": "GENERIC_TAX_REPORTING_CUBE",
+    "package_path": null,
+    "view_type": "graphical",
+    "data_category": "CUBE",
+    "schema_version": "2.3",
+    "file_hash": "dab90b330183e9da8ff7a2ce6cb345353a74321d92f0e909a9e4304604aa5679",
+    "parse_status": "ok",
+    "coverage_pct": 100.0
+  },
+  "nodes": [
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "datasource",
+      "name": "SOURCE_VIEW_01",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"SOURCE_VIEW_01\" type=\"CALCULATION_VIEW\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <resourceUri>/pkg.synthetic/calculationviews/SOURCE_VIEW_01</resourceUri>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/TABLE_A",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "datasource",
+      "name": "TABLE_A",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"TABLE_A\" type=\"DATA_BASE_TABLE\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <columnObject schemaName=\"SCHEMA_1\" columnObjectName=\"TABLE_A\"/>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/TABLE_B",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "datasource",
+      "name": "TABLE_B",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"TABLE_B\" type=\"DATA_BASE_TABLE\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <columnObject schemaName=\"SCHEMA_1\" columnObjectName=\"TABLE_B\"/>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/Projection_1",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "projection",
+      "name": "Projection_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xsi:type=\"Calculation:ProjectionView\" id=\"Projection_1\">\n      <descriptions/>\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n        <viewAttribute id=\"COL_2\"/>\n        <viewAttribute id=\"COL_3\"/>\n        <viewAttribute id=\"AMT_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes>\n        <calculatedViewAttribute datatype=\"DECIMAL\" id=\"CC_1\" length=\"15\" scale=\"2\" expressionLanguage=\"COLUMN_ENGINE\">\n          <formula>if(\"COL_2\" = 'X', \"AMT_1\", 0)</formula>\n        </calculatedViewAttribute>\n      </calculatedViewAttributes>\n      <input node=\"#SOURCE_VIEW_01\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_2\" source=\"COL_2\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_3\" source=\"COL_3\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n      </input>\n      <filter>(\"COL_3\" = '$$IP_FISCAL_YEAR$$')</filter>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Projection_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Projection_1/COL_2",
+          "name": "COL_2",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Projection_1/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Projection_1/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Projection_1/CC_1",
+          "name": "CC_1",
+          "datatype": "DECIMAL",
+          "length": 15,
+          "scale": 2,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": {
+            "text": "if(\"COL_2\" = 'X', \"AMT_1\", 0)",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "call",
+              "value": "if",
+              "args": [
+                {
+                  "kind": "binary",
+                  "value": "=",
+                  "args": [
+                    {
+                      "kind": "column",
+                      "value": "COL_2",
+                      "args": []
+                    },
+                    {
+                      "kind": "string",
+                      "value": "X",
+                      "args": []
+                    }
+                  ]
+                },
+                {
+                  "kind": "column",
+                  "value": "AMT_1",
+                  "args": []
+                },
+                {
+                  "kind": "number",
+                  "value": "0",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "filters": [
+        {
+          "expression": {
+            "text": "(\"COL_3\" = '$$IP_FISCAL_YEAR$$')",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "binary",
+              "value": "=",
+              "args": [
+                {
+                  "kind": "column",
+                  "value": "COL_3",
+                  "args": []
+                },
+                {
+                  "kind": "param",
+                  "value": "IP_FISCAL_YEAR",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/Join_1",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "join",
+      "name": "Join_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xsi:type=\"Calculation:JoinView\" id=\"Join_1\" cardinality=\"CN_1\" joinOrder=\"OUTSIDE_IN\" joinType=\"leftOuter\">\n      <descriptions/>\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n        <viewAttribute id=\"COL_2\"/>\n        <viewAttribute id=\"COL_3\"/>\n        <viewAttribute id=\"COL_4\"/>\n        <viewAttribute id=\"AMT_1\"/>\n        <viewAttribute id=\"CC_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes/>\n      <input node=\"#Projection_1\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_2\" source=\"COL_2\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_3\" source=\"COL_3\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"CC_1\" source=\"CC_1\"/>\n      </input>\n      <input node=\"#TABLE_A\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_4\" source=\"COL_4\"/>\n      </input>\n      <joinAttribute name=\"COL_1\"/>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Join_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Join_1/COL_2",
+          "name": "COL_2",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Join_1/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Join_1/COL_4",
+          "name": "COL_4",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Join_1/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Join_1/CC_1",
+          "name": "CC_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": {
+        "join_type": "leftOuter",
+        "cardinality": "CN_1",
+        "left_node": "GENERIC_TAX_REPORTING_CUBE/Projection_1",
+        "right_node": "GENERIC_TAX_REPORTING_CUBE/TABLE_A",
+        "conditions": [
+          {
+            "column": "COL_1"
+          }
+        ],
+        "special": false
+      },
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/Union_1",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "union",
+      "name": "Union_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xsi:type=\"Calculation:UnionView\" id=\"Union_1\">\n      <descriptions/>\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n        <viewAttribute id=\"COL_3\"/>\n        <viewAttribute id=\"COL_5\"/>\n        <viewAttribute id=\"AMT_1\"/>\n        <viewAttribute id=\"CC_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes/>\n      <input emptyUnionBehavior=\"NO_ROW\" node=\"#Join_1\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_3\" source=\"COL_3\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"CC_1\" source=\"CC_1\"/>\n        <mapping xsi:type=\"Calculation:ConstantAttributeMapping\" target=\"COL_5\" null=\"false\" value=\"SRC_A\"/>\n      </input>\n      <input emptyUnionBehavior=\"NO_ROW\" node=\"#TABLE_B\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_3\" source=\"COL_3\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n        <mapping xsi:type=\"Calculation:ConstantAttributeMapping\" target=\"CC_1\" null=\"true\"/>\n        <mapping xsi:type=\"Calculation:ConstantAttributeMapping\" target=\"COL_5\" null=\"false\" value=\"SRC_B\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Union_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Union_1/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Union_1/COL_5",
+          "name": "COL_5",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Union_1/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Union_1/CC_1",
+          "name": "CC_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "aggregation",
+      "name": "Aggregation_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xsi:type=\"Calculation:AggregationView\" id=\"Aggregation_1\">\n      <descriptions/>\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n        <viewAttribute id=\"COL_3\"/>\n        <viewAttribute id=\"COL_5\"/>\n        <viewAttribute id=\"AMT_1\" aggregationType=\"sum\"/>\n        <viewAttribute id=\"CC_1\" aggregationType=\"sum\"/>\n      </viewAttributes>\n      <calculatedViewAttributes>\n        <calculatedViewAttribute datatype=\"DECIMAL\" id=\"CC_2\" length=\"17\" scale=\"2\" expressionLanguage=\"COLUMN_ENGINE\">\n          <formula>\"AMT_1\" * $$IP_RATE$$</formula>\n        </calculatedViewAttribute>\n      </calculatedViewAttributes>\n      <input node=\"Union_1\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_3\" source=\"COL_3\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_5\" source=\"COL_5\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"CC_1\" source=\"CC_1\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1/COL_5",
+          "name": "COL_5",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1/CC_1",
+          "name": "CC_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1/CC_2",
+          "name": "CC_2",
+          "datatype": "DECIMAL",
+          "length": 17,
+          "scale": 2,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": {
+            "text": "\"AMT_1\" * $$IP_RATE$$",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "binary",
+              "value": "*",
+              "args": [
+                {
+                  "kind": "column",
+                  "value": "AMT_1",
+                  "args": []
+                },
+                {
+                  "kind": "param",
+                  "value": "IP_RATE",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/Semantics",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "node_type": "output",
+      "name": "Semantics",
+      "raw": "<logicalModel xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"Aggregation_1\">\n    <attributes>\n      <attribute id=\"COL_1\" order=\"1\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_1\"/>\n        <keyMapping columnObjectName=\"Aggregation_1\" columnName=\"COL_1\"/>\n      </attribute>\n      <attribute id=\"COL_3\" order=\"2\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_3\"/>\n        <keyMapping columnObjectName=\"Aggregation_1\" columnName=\"COL_3\"/>\n      </attribute>\n      <attribute id=\"COL_5\" order=\"3\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_5\"/>\n        <keyMapping columnObjectName=\"Aggregation_1\" columnName=\"COL_5\"/>\n      </attribute>\n    </attributes>\n    <calculatedAttributes/>\n    <privateDataFoundation>\n      <tableProxies/>\n      <joins/>\n      <layout>\n        <shapes/>\n      </layout>\n    </privateDataFoundation>\n    <baseMeasures>\n      <measure id=\"AMT_1\" order=\"4\" aggregationType=\"sum\" engineAggregation=\"sum\" measureType=\"simple\">\n        <descriptions defaultDescription=\"AMT_1\"/>\n        <measureMapping columnObjectName=\"Aggregation_1\" columnName=\"AMT_1\"/>\n      </measure>\n      <measure id=\"CC_1\" order=\"5\" aggregationType=\"sum\" engineAggregation=\"sum\" measureType=\"simple\">\n        <descriptions defaultDescription=\"CC_1\"/>\n        <measureMapping columnObjectName=\"Aggregation_1\" columnName=\"CC_1\"/>\n      </measure>\n      <measure id=\"CC_2\" order=\"6\" aggregationType=\"sum\" engineAggregation=\"sum\" measureType=\"simple\">\n        <descriptions defaultDescription=\"CC_2\"/>\n        <measureMapping columnObjectName=\"Aggregation_1\" columnName=\"CC_2\"/>\n      </measure>\n    </baseMeasures>\n    <calculatedMeasures>\n      <measure id=\"CM_1\" order=\"7\" aggregationType=\"sum\" measureType=\"simple\" datatype=\"DECIMAL\" length=\"17\" scale=\"2\" expressionLanguage=\"COLUMN_ENGINE\">\n        <descriptions defaultDescription=\"CM_1\"/>\n        <formula>\"AMT_1\" - \"CC_1\"</formula>\n      </measure>\n    </calculatedMeasures>\n    <restrictedMeasures/>\n    <localDimensions/>\n  </logicalModel>",
+      "columns": [
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/COL_5",
+          "name": "COL_5",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/CC_1",
+          "name": "CC_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/CC_2",
+          "name": "CC_2",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        },
+        {
+          "id": "GENERIC_TAX_REPORTING_CUBE/Semantics/CM_1",
+          "name": "CM_1",
+          "datatype": "DECIMAL",
+          "length": 17,
+          "scale": 2,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": {
+            "text": "\"AMT_1\" - \"CC_1\"",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "binary",
+              "value": "-",
+              "args": [
+                {
+                  "kind": "column",
+                  "value": "AMT_1",
+                  "args": []
+                },
+                {
+                  "kind": "column",
+                  "value": "CC_1",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    }
+  ],
+  "edges": [
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Projection_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_2",
+          "source": "COL_2",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/Projection_1",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Join_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_2",
+          "source": "COL_2",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_1",
+          "source": "CC_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/TABLE_A",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Join_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_4",
+          "source": "COL_4",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/Join_1",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Union_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_1",
+          "source": "CC_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_5",
+          "source": null,
+          "constant": "SRC_A",
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/TABLE_B",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Union_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_1",
+          "source": null,
+          "constant": null,
+          "null": true
+        },
+        {
+          "target": "COL_5",
+          "source": null,
+          "constant": "SRC_B",
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/Union_1",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_5",
+          "source": "COL_5",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_1",
+          "source": "CC_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1",
+      "to_node": "GENERIC_TAX_REPORTING_CUBE/Semantics",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_5",
+          "source": "COL_5",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_1",
+          "source": "CC_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "CC_2",
+          "source": "CC_2",
+          "constant": null,
+          "null": false
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/@param/IP_FISCAL_YEAR",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "name": "IP_FISCAL_YEAR",
+      "kind": "input_parameter",
+      "datatype": "NVARCHAR",
+      "length": 4,
+      "scale": null,
+      "default": null,
+      "mandatory": true,
+      "used_in": [
+        {
+          "node_id": "GENERIC_TAX_REPORTING_CUBE/Projection_1",
+          "usage": "filter"
+        }
+      ]
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/@param/IP_RATE",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "name": "IP_RATE",
+      "kind": "input_parameter",
+      "datatype": "DECIMAL",
+      "length": 5,
+      "scale": 2,
+      "default": "1",
+      "mandatory": false,
+      "used_in": [
+        {
+          "node_id": "GENERIC_TAX_REPORTING_CUBE/Aggregation_1",
+          "usage": "calculation"
+        }
+      ]
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/@param/V_COMPANY",
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "name": "V_COMPANY",
+      "kind": "variable",
+      "datatype": "NVARCHAR",
+      "length": 4,
+      "scale": null,
+      "default": null,
+      "mandatory": false,
+      "used_in": []
+    }
+  ],
+  "parameter_mappings": [
+    {
+      "view_id": "GENERIC_TAX_REPORTING_CUBE",
+      "data_source_id": "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01",
+      "target_parameter": "IP_YEAR",
+      "local_parameter": "IP_FISCAL_YEAR",
+      "constant": null
+    }
+  ],
+  "data_sources": [
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/SOURCE_VIEW_01",
+      "kind": "calc_view",
+      "schema_name": null,
+      "name": "SOURCE_VIEW_01",
+      "resource_uri": "/pkg.synthetic/calculationviews/SOURCE_VIEW_01",
+      "resolved_view_id": null
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/TABLE_A",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_A",
+      "resource_uri": null,
+      "resolved_view_id": null
+    },
+    {
+      "id": "GENERIC_TAX_REPORTING_CUBE/TABLE_B",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_B",
+      "resource_uri": null,
+      "resolved_view_id": null
+    }
+  ],
+  "warnings": []
+}

@@ -16,9 +16,14 @@ pytest -q
 
 ## Run
 
+Import a folder of calculation views into a project database, then browse it:
+
 ```
-calcview serve
+calcview import path/to/views --db project.db
+calcview serve --db project.db
 ```
+
+`--db` defaults to `./calcview.db`; `serve` without `--db` uses the `CALCVIEW_DB` environment variable when it is set. Running `import` again on the same folder re-imports it: unchanged files are skipped, changed views replace the stored ones, and notes on changed views or nodes are marked stale. `import --name NAME` sets the project name (default: the folder name). The import report lists counts, internal and unresolved dependencies, cycles, deploy order and warnings. The database holds work data and stays on your machine; `*.db` files are git-ignored.
 
 The server always binds to 127.0.0.1; there is no option to change the host.
 

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture: CYCLE_A reads CYCLE_B and CYCLE_B reads CYCLE_A (a dependency cycle).
+     Element order and nesting follow GENERIC_TAX_REPORTING_CUBE; every name is a dummy. -->
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" schemaVersion="2.3" id="CYCLE_A" applyPrivilegeType="ANALYTIC_PRIVILEGE" checkAnalyticPrivileges="true" defaultClient="$$client$$" defaultLanguage="$$language$$" visibility="internal" calculationScenarioType="TREE_BASED" dataCategory="CUBE" enforceSqlExecution="false" executionSemantic="UNDEFINED" outputViewType="Projection">
+  <origin/>
+  <descriptions defaultDescription="CYCLE_A"/>
+  <localVariables/>
+  <variableMappings/>
+  <dataSources>
+    <DataSource id="CYCLE_B" type="CALCULATION_VIEW">
+      <viewAttributes allViewAttributes="true"/>
+      <resourceUri>/pkg.synthetic/calculationviews/CYCLE_B</resourceUri>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="Projection_1">
+      <descriptions/>
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+        <viewAttribute id="AMT_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes/>
+      <input node="#CYCLE_B">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+      </input>
+    </calculationView>
+  </calculationViews>
+  <logicalModel id="Projection_1">
+    <attributes>
+      <attribute id="COL_1" order="1" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_1"/>
+        <keyMapping columnObjectName="Projection_1" columnName="COL_1"/>
+      </attribute>
+    </attributes>
+    <calculatedAttributes/>
+    <privateDataFoundation>
+      <tableProxies/>
+      <joins/>
+      <layout>
+        <shapes/>
+      </layout>
+    </privateDataFoundation>
+    <baseMeasures>
+      <measure id="AMT_1" order="2" aggregationType="sum" engineAggregation="sum" measureType="simple">
+        <descriptions defaultDescription="AMT_1"/>
+        <measureMapping columnObjectName="Projection_1" columnName="AMT_1"/>
+      </measure>
+    </baseMeasures>
+    <calculatedMeasures/>
+    <restrictedMeasures/>
+    <localDimensions/>
+  </logicalModel>
+  <layout>
+    <shapes>
+      <shape expanded="true" modelObjectName="Output" modelObjectNameSpace="MeasureGroup">
+        <upperLeftCorner x="40" y="85"/>
+      </shape>
+    </shapes>
+  </layout>
+</Calculation:scenario>

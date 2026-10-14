@@ -1,0 +1,246 @@
+{
+  "view": {
+    "id": "SOURCE_VIEW_01",
+    "name": "SOURCE_VIEW_01",
+    "package_path": null,
+    "view_type": "graphical",
+    "data_category": "CUBE",
+    "schema_version": "2.3",
+    "file_hash": "79e516131587af0bc3803b08abae3031168fdd62e56ce1f60b52a3ef5f909c57",
+    "parse_status": "ok",
+    "coverage_pct": 100.0
+  },
+  "nodes": [
+    {
+      "id": "SOURCE_VIEW_01/TABLE_C",
+      "view_id": "SOURCE_VIEW_01",
+      "node_type": "datasource",
+      "name": "TABLE_C",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"TABLE_C\" type=\"DATA_BASE_TABLE\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <columnObject schemaName=\"SCHEMA_1\" columnObjectName=\"TABLE_C\"/>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "SOURCE_VIEW_01/Projection_1",
+      "view_id": "SOURCE_VIEW_01",
+      "node_type": "projection",
+      "name": "Projection_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xsi:type=\"Calculation:ProjectionView\" id=\"Projection_1\">\n      <descriptions/>\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n        <viewAttribute id=\"COL_2\"/>\n        <viewAttribute id=\"COL_3\"/>\n        <viewAttribute id=\"AMT_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes/>\n      <input node=\"#TABLE_C\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_2\" source=\"COL_2\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_3\" source=\"COL_3\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n      </input>\n      <filter>(\"COL_3\" = '$$IP_YEAR$$')</filter>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "SOURCE_VIEW_01/Projection_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "SOURCE_VIEW_01/Projection_1/COL_2",
+          "name": "COL_2",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "SOURCE_VIEW_01/Projection_1/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "SOURCE_VIEW_01/Projection_1/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [
+        {
+          "expression": {
+            "text": "(\"COL_3\" = '$$IP_YEAR$$')",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "binary",
+              "value": "=",
+              "args": [
+                {
+                  "kind": "column",
+                  "value": "COL_3",
+                  "args": []
+                },
+                {
+                  "kind": "param",
+                  "value": "IP_YEAR",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "SOURCE_VIEW_01/Semantics",
+      "view_id": "SOURCE_VIEW_01",
+      "node_type": "output",
+      "name": "Semantics",
+      "raw": "<logicalModel xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"Projection_1\">\n    <attributes>\n      <attribute id=\"COL_1\" order=\"1\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_1\"/>\n        <keyMapping columnObjectName=\"Projection_1\" columnName=\"COL_1\"/>\n      </attribute>\n      <attribute id=\"COL_2\" order=\"2\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_2\"/>\n        <keyMapping columnObjectName=\"Projection_1\" columnName=\"COL_2\"/>\n      </attribute>\n      <attribute id=\"COL_3\" order=\"3\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_3\"/>\n        <keyMapping columnObjectName=\"Projection_1\" columnName=\"COL_3\"/>\n      </attribute>\n    </attributes>\n    <calculatedAttributes/>\n    <privateDataFoundation>\n      <tableProxies/>\n      <joins/>\n      <layout>\n        <shapes/>\n      </layout>\n    </privateDataFoundation>\n    <baseMeasures>\n      <measure id=\"AMT_1\" order=\"4\" aggregationType=\"sum\" engineAggregation=\"sum\" measureType=\"simple\">\n        <descriptions defaultDescription=\"AMT_1\"/>\n        <measureMapping columnObjectName=\"Projection_1\" columnName=\"AMT_1\"/>\n      </measure>\n    </baseMeasures>\n    <calculatedMeasures/>\n    <restrictedMeasures/>\n    <localDimensions/>\n  </logicalModel>",
+      "columns": [
+        {
+          "id": "SOURCE_VIEW_01/Semantics/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "SOURCE_VIEW_01/Semantics/COL_2",
+          "name": "COL_2",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "SOURCE_VIEW_01/Semantics/COL_3",
+          "name": "COL_3",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "SOURCE_VIEW_01/Semantics/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    }
+  ],
+  "edges": [
+    {
+      "from_node": "SOURCE_VIEW_01/TABLE_C",
+      "to_node": "SOURCE_VIEW_01/Projection_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_2",
+          "source": "COL_2",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "SOURCE_VIEW_01/Projection_1",
+      "to_node": "SOURCE_VIEW_01/Semantics",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_2",
+          "source": "COL_2",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "COL_3",
+          "source": "COL_3",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "id": "SOURCE_VIEW_01/@param/IP_YEAR",
+      "view_id": "SOURCE_VIEW_01",
+      "name": "IP_YEAR",
+      "kind": "input_parameter",
+      "datatype": "NVARCHAR",
+      "length": 4,
+      "scale": null,
+      "default": null,
+      "mandatory": true,
+      "used_in": [
+        {
+          "node_id": "SOURCE_VIEW_01/Projection_1",
+          "usage": "filter"
+        }
+      ]
+    }
+  ],
+  "parameter_mappings": [],
+  "data_sources": [
+    {
+      "id": "SOURCE_VIEW_01/TABLE_C",
+      "kind": "table",
+      "schema_name": "SCHEMA_1",
+      "name": "TABLE_C",
+      "resource_uri": null,
+      "resolved_view_id": null
+    }
+  ],
+  "warnings": []
+}

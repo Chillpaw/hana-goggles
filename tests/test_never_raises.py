@@ -1,7 +1,9 @@
 import pytest
 from conftest import FIXTURES, MAIN
+from lxml import etree
 
 import app.parsers.dispatch as dispatch
+from app.parsers import xmlutil
 from app.ir.models import ParseResult, ParseStatus, Severity
 
 
@@ -39,3 +41,13 @@ def test_internal_bug_becomes_a_parser_crash_warning(monkeypatch):
 def test_unreadable_file_becomes_a_read_error(tmp_path):
     result = dispatch.parse_file(tmp_path / "missing.calculationview")
     assert result.warnings[0].code == "READ_ERROR"
+
+
+def test_external_entities_are_never_resolved(tmp_path):
+    secret = tmp_path / "secret.txt"
+    secret.write_text("SENTINEL_SECRET_42")
+    data = (
+        f'<?xml version="1.0"?><!DOCTYPE x [<!ENTITY e SYSTEM "{secret.as_uri()}">]><x>&e;</x>'
+    ).encode()
+    root, _, _ = xmlutil.load(data)
+    assert root is None or "SENTINEL_SECRET_42" not in etree.tostring(root, encoding="unicode")

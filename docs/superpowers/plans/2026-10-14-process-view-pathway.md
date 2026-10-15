@@ -314,6 +314,24 @@ Never printed: file names, paths, ids, names, column names, descriptions, litera
 
 ---
 
+## Warning codes added on this pathway
+
+Every one is an `IRWarning`; none is ever dropped. Import-level codes are in the import report (CLI output and the "Last import" box at the top of `/views`); estate codes are recomputed with the estate and shown on `/views`, the view header and `/estate`; parser codes are on the view's Warnings tab.
+
+| Code | Severity | Raised by | Raised when |
+|---|---|---|---|
+| `SCAN_DIR_UNREADABLE` | error | scan | `os.walk` cannot list a folder under the root (permissions, a network drive dropping). The import then keeps stored views it did not see (see `REMOVALS_SKIPPED`). |
+| `SCAN_BAD_FILENAME` | warning | scan | A view file name is not valid UTF-8; the file is skipped. |
+| `DUPLICATE_VIEW_ID` | error | importer, estate | Two or more files carry the same view id. The import stores one (a parsed file before a failed one, then first by path) and names the skipped files; the estate takes dependencies from one copy. |
+| `DUPLICATE_NODE_ID` | warning | parser | A view repeats a data source or calculation view id, or names a calculation view `Semantics`; the last definition wins and the view parses `partial`. |
+| `UNRESOLVED_VIEW_DEPENDENCY` | warning | estate | A view reads a calculation view that is not in the imported folder; it becomes a `view:` leaf. |
+| `AMBIGUOUS_DEPENDENCY` | warning | estate | A calculation-view source matches several views with that id and none by package; it becomes a `view:` leaf. |
+| `CYCLE` | error | estate | Views read from each other in a cycle (one warning per cycle), so no deploy order exists for them. |
+| `REMOVALS_SKIPPED` | warning | importer | The scan raised `SCAN_DIR_UNREADABLE` and stored views were missing from it: none are removed or marked stale; the message says how many were kept. |
+| `VIEW_NOT_STORED` | error | importer | The database refused one view (`sqlite3.IntegrityError`); the import carries on, the previous version (if any) is kept, and the report counts it under "Not stored". |
+
+---
+
 ## Exit checklist
 
 - [ ] `pytest -q` green on a clean venv installed with `-c constraints.txt`.

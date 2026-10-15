@@ -186,6 +186,21 @@
       evt.detail.isError = false;
     }
   });
+  // Any other failed panel request (500, a refused POST, ...) says so in the panel
+  // instead of leaving it silently unchanged. Built with textContent: no markup.
+  document.addEventListener("htmx:responseError", function (evt) {
+    var panel = document.getElementById("node-panel");
+    var target = evt.detail.target;
+    if (!panel || !target || target.id !== "node-panel") { return; }
+    var verb = (evt.detail.requestConfig && evt.detail.requestConfig.verb) || "get";
+    var status = evt.detail.xhr ? evt.detail.xhr.status : 0;
+    var message = document.createElement("p");
+    message.className = "callout bad";
+    message.setAttribute("role", "alert");
+    message.textContent = (verb.toLowerCase() === "post" ? "Not saved" : "Could not load this step") +
+      " (HTTP " + status + ").";
+    panel.insertBefore(message, panel.firstChild);
+  });
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);

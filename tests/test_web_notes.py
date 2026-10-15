@@ -11,7 +11,7 @@ from app.ingest.importer import import_folder
 from app.ir.models import Annotation, SignoffStatus, TargetKind
 from app.ir.store import Store
 from app.main import create_app
-from app.web.routes import node_notes_url, notes_url, orphaned_node_notes
+from app.web.routes import node_notes_url, notes_url, orphaned_notes
 
 VIEW = "GENERIC_TAX_REPORTING_CUBE"
 PRODUCER = "SOURCE_VIEW_01"
@@ -41,9 +41,12 @@ def client(db):
     return local_client(create_app(db))
 
 
-def _annotation(db, target_id):
+def _annotation(db, target_id, kind=None):
+    """The view's annotation for VIEW / PRODUCER / other bare ids, else the node's."""
+    if kind is None:
+        kind = TargetKind.NODE if "/" in target_id else TargetKind.VIEW
     with Store(db) as store:
-        return store.get_annotation(target_id)
+        return store.get_annotation(target_id, kind)
 
 
 def _post(client, url, data, **kw):
@@ -128,13 +131,14 @@ def test_notes_without_project_is_404(tmp_path):
     assert not db.exists()
 
 
-def test_view_note_keeps_other_kinds_apart(client, db):
-    """A view and a node can never share one annotation row: the id is the only key."""
-    with Store(db) as store:
-        store.save_annotation(Annotation(target_id=VIEW, target_kind=TargetKind.NODE, notes="n"))
-    response = _post(client, notes_url(VIEW), FULL)
-    assert response.status_code == 400
-    assert _annotation(db, VIEW).target_kind == TargetKind.NODE
+def test_emptied_field_clears_saved_value(client, db):
+    _post(client, notes_url(VIEW), FULL)
+    assert _post(client, notes_url(VIEW), {**FULL, "owner": "", "notes": ""}).status_code == 303
+    saved = _annotation(db, VIEW)
+    assert (saved.owner, saved.notes, saved.purpose_text) == ("", "", FULL["purpose_text"])
+    _post(client, node_notes_url(VIEW, NODE), {"signoff_status": "draft", "notes": "x"})
+    _post(client, node_notes_url(VIEW, NODE), {"signoff_status": "draft", "notes": ""})
+    assert _annotation(db, NODE).notes == ""
 
 
 def test_hostile_note_text_is_escaped(client):
@@ -274,7 +278,7 @@ def test_node_note_stale_badge_and_orphan(client, db, folder):
 def test_node_panel_shows_stale_badge(client, db, folder):
     with Store(db) as store:
         store.save_annotation(Annotation(target_id=NODE, target_kind=TargetKind.NODE, notes="n"))
-        store.mark_stale([NODE], "node changed")
+        store.mark_stale([NODE], "node changed", TargetKind.NODE)
     html = client.get(f"/node?view={VIEW}&node={NODE}").text
     assert "Stale: node changed" in html
     response = _post(client, node_notes_url(VIEW, NODE), {"signoff_status": "draft", "notes": "n"})
@@ -289,23 +293,75 @@ def test_hostile_node_note_is_escaped(client):
     assert "<script>alert(1)" not in _notes_tab(client)
 
 
-def test_orphans_of_a_longer_view_id_are_not_claimed(tmp_path, client, db):
-    """View ids may contain '/': a note on `<VIEW>/X/STEP` belongs to a view `<VIEW>/X`
-    when that view exists. Here it does not, so it stays with VIEW."""
+def _slashed_folder(tmp_path, ids):
+    """One copy of the producer fixture per view id (ids may contain '/')."""
+    xml = (FIXTURES / "graphical" / f"{PRODUCER}.calculationview").read_text(encoding="utf-8")
+    folder = tmp_path / "slashed"
+    folder.mkdir()
+    for i, view_id in enumerate(ids):
+        (folder / f"V{i}.calculationview").write_text(
+            xml.replace(f'id="{PRODUCER}"', f'id="{view_id}"', 1), encoding="utf-8")
+    return folder
+
+
+def test_step_notes_of_a_removed_view_show_on_the_views_list(client, db, folder):
+    _post(client, node_notes_url(PRODUCER, f"{PRODUCER}/Projection_1"),
+          {"signoff_status": "draft", "notes": "note on a gone view step"})
+    (folder / f"{PRODUCER}.calculationview").unlink()
+    _reimport(db, folder)
+    html = client.get("/views").text
+    section = html[html.index("Notes on views that no longer exist"):]
+    assert f"{PRODUCER}/Projection_1" in section and "note on a gone view step" in section
+    assert "Stale: view removed" in section
+    assert "note on a gone view step" not in _notes_tab(client, VIEW)
+
+
+def test_removed_view_with_slash_does_not_lend_its_step_notes_to_a_shorter_view(tmp_path):
+    folder = _slashed_folder(tmp_path, ["A", "A/B"])
+    db = tmp_path / "s.db"
+    _reimport(db, folder)
+    client = local_client(create_app(db))
+    _post(client, node_notes_url("A/B", "A/B/Projection_1"),
+          {"signoff_status": "draft", "notes": "step of A/B"})
+    (folder / "V1.calculationview").unlink()  # view A/B is gone; A remains
+    _reimport(db, folder)
+    assert _annotation(db, "A/B/Projection_1").stale_reason == "view removed"
+    assert "step of A/B" not in _notes_tab(client, "A")
+    html = client.get("/views").text
+    assert "step of A/B" in html[html.index("Notes on views that no longer exist"):]
+
+
+def test_view_and_node_with_the_same_id_keep_separate_notes(tmp_path):
+    # view "A/Projection_1" and step "Projection_1" of view "A" share the id A/Projection_1
+    folder = _slashed_folder(tmp_path, ["A", "A/Projection_1"])
+    db = tmp_path / "s.db"
+    _reimport(db, folder)
+    client = local_client(create_app(db))
+    same = "A/Projection_1"
+    assert _post(client, notes_url(same), {**FULL, "notes": "view note"}).status_code == 303
+    assert _post(client, node_notes_url("A", same),
+                 {"signoff_status": "approved", "notes": "step note"}).status_code == 200
+    assert _annotation(db, same, TargetKind.VIEW).notes == "view note"
+    assert _annotation(db, same, TargetKind.NODE).notes == "step note"
+    assert "view note</textarea>" in _notes_tab(client, same)
+    assert "step note</textarea>" in client.get("/node", params={"view": "A", "node": same}).text
     with Store(db) as store:
-        store.save_annotation(Annotation(target_id=f"{PRODUCER}/Gone", target_kind=TargetKind.NODE,
-                                         notes="gone step note"))
-        store.mark_stale([f"{PRODUCER}/Gone"], "node removed")
-    assert "gone step note" in _notes_tab(client, PRODUCER)
-    assert "gone step note" not in _notes_tab(client, VIEW)
+        assert store.mark_stale([same], "node changed", TargetKind.NODE) == 1
+    assert _annotation(db, same, TargetKind.NODE).stale
+    assert not _annotation(db, same, TargetKind.VIEW).stale
+    assert "Stale:" not in _notes_tab(client, same).split("Notes on steps")[0]
 
 
-def test_orphaned_node_notes_go_to_the_longest_existing_view_id():
-    def note(target_id, kind=TargetKind.NODE):
-        return Annotation(target_id=target_id, target_kind=kind)
-    notes = [note("A/STEP_1"), note("A/GONE"), note("A/B/GONE"), note("AB/GONE"),
-             note("A/OLD_VIEW_NOTE", TargetKind.VIEW)]
-    found = orphaned_node_notes("A", {"A/STEP_1"}, {"A", "A/B", "AB"}, notes)
-    assert [n.target_id for n in found] == ["A/GONE"]
-    found = orphaned_node_notes("A/B", set(), {"A", "A/B", "AB"}, notes)
-    assert [n.target_id for n in found] == ["A/B/GONE"]
+def test_orphaned_notes_classification():
+    def note(target_id, kind=TargetKind.NODE, reason=None):
+        return Annotation(target_id=target_id, target_kind=kind, stale=reason is not None,
+                          stale_reason=reason)
+    notes = [note("A/STEP_1"), note("A/GONE", reason="node removed"),
+             note("A/B/GONE", reason="node removed"), note("AB/GONE"),
+             note("A/C/X", reason="view removed"), note("Z/X", reason="view removed"),
+             note("Z", TargetKind.VIEW, "view removed"), note("A", TargetKind.VIEW)]
+    by_view, removed = orphaned_notes(notes, {"A", "A/B", "AB"}, {"A/STEP_1"})
+    assert {k: [n.target_id for n in v] for k, v in by_view.items()} == {
+        "A": ["A/GONE"], "A/B": ["A/B/GONE"], "AB": ["AB/GONE"]}
+    assert [(n.target_kind, n.target_id) for n in removed] == [
+        ("node", "A/C/X"), ("node", "Z/X"), ("view", "Z")]

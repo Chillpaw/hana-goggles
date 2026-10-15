@@ -19,12 +19,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from app.ir.models import Annotation, Node, ParseResult, Project, ViewSummary
+from app.ir.models import Annotation, Node, ParseResult, Project, TargetKind, ViewSummary
 
 if TYPE_CHECKING:  # the IR layer does not import ingest at runtime
     from app.ingest.scan import ScannedView
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: annotation keyed by (target_kind, target_id)
 BUSY_TIMEOUT_MS = 5000
 _SAVEPOINT = "store_nested"
 
@@ -44,11 +44,12 @@ CREATE TABLE node (
 );
 CREATE INDEX node_view_id ON node(view_id);
 CREATE TABLE annotation (
-    target_id TEXT PRIMARY KEY,
-    target_kind TEXT CHECK (target_kind IN ('view', 'node')),
+    target_id TEXT NOT NULL,
+    target_kind TEXT NOT NULL CHECK (target_kind IN ('view', 'node')),
     purpose_text TEXT, owner TEXT,
     signoff_status TEXT CHECK (signoff_status IN ('draft', 'reviewed', 'approved')),
-    notes TEXT, stale INTEGER NOT NULL DEFAULT 0, stale_reason TEXT, updated_at TEXT
+    notes TEXT, stale INTEGER NOT NULL DEFAULT 0, stale_reason TEXT, updated_at TEXT,
+    PRIMARY KEY (target_kind, target_id)
 );
 """
 
@@ -227,10 +228,11 @@ class Store:
 
     # -- annotations -----------------------------------------------------------------
 
-    def get_annotation(self, target_id: str) -> Annotation | None:
+    def get_annotation(self, target_id: str, kind: TargetKind) -> Annotation | None:
+        """A view and a node may share an id; each kind has its own annotation."""
         row = self.conn.execute(
-            f"SELECT {_ANNOTATION_COLUMNS} FROM annotation WHERE target_id = ?",
-            (target_id,)).fetchone()
+            f"SELECT {_ANNOTATION_COLUMNS} FROM annotation "
+            "WHERE target_kind = ? AND target_id = ?", (str(kind), target_id)).fetchone()
         return _annotation(row) if row else None
 
     def save_annotation(self, annotation: Annotation) -> Annotation:
@@ -244,7 +246,7 @@ class Store:
              str(saved.signoff_status), saved.notes, 0, None, saved.updated_at))
         return saved
 
-    def mark_stale(self, target_ids: Iterable[str], reason: str) -> int:
+    def mark_stale(self, target_ids: Iterable[str], reason: str, kind: TargetKind) -> int:
         """Mark existing annotations stale with `reason` (an already-stale one gets the new
         reason); ids without an annotation are ignored. Returns how many annotations were
         newly marked (not stale before)."""
@@ -253,15 +255,18 @@ class Store:
             for target_id in target_ids:
                 cursor = self.conn.execute(
                     "UPDATE annotation SET stale = 1, stale_reason = ? "
-                    "WHERE target_id = ? AND stale = 0", (reason, target_id))
+                    "WHERE target_kind = ? AND target_id = ? AND stale = 0",
+                    (reason, str(kind), target_id))
                 marked += cursor.rowcount
                 self.conn.execute(
-                    "UPDATE annotation SET stale_reason = ? WHERE target_id = ? AND stale = 1",
-                    (reason, target_id))
+                    "UPDATE annotation SET stale_reason = ? "
+                    "WHERE target_kind = ? AND target_id = ? AND stale = 1",
+                    (reason, str(kind), target_id))
         return marked
 
     def list_annotations(self) -> list[Annotation]:
-        rows = self.conn.execute(f"SELECT {_ANNOTATION_COLUMNS} FROM annotation ORDER BY target_id")
+        rows = self.conn.execute(f"SELECT {_ANNOTATION_COLUMNS} FROM annotation "
+                                 "ORDER BY target_id, target_kind")
         return [_annotation(r) for r in rows]
 
 

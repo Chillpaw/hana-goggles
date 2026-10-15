@@ -84,12 +84,12 @@ def test_changed_filter_marks_annotations_stale(store, folder):
 
     assert (report.added, report.changed, report.unchanged, report.removed) == (0, 1, 1, 0)
     assert report.stale_annotations == 2
-    view_ann = store.get_annotation(VIEW)
+    view_ann = store.get_annotation(VIEW, TargetKind.VIEW)
     assert view_ann.stale and view_ann.stale_reason == "view file changed"
-    proj = store.get_annotation(f"{VIEW}/Projection_1")
+    proj = store.get_annotation(f"{VIEW}/Projection_1", TargetKind.NODE)
     assert proj.stale and proj.stale_reason == "node changed"
-    assert not store.get_annotation(f"{VIEW}/Join_1").stale
-    assert not store.get_annotation(PRODUCER).stale
+    assert not store.get_annotation(f"{VIEW}/Join_1", TargetKind.NODE).stale
+    assert not store.get_annotation(PRODUCER, TargetKind.VIEW).stale
     assert "2024" in _filter_text(store, "Projection_1")
 
 
@@ -100,7 +100,7 @@ def test_removed_node(store, folder):
     _edit(folder / MAIN_FILE, 'id="Projection_1"', 'id="Projection_9"')
     _edit(folder / MAIN_FILE, 'node="#Projection_1"', 'node="#Projection_9"')
     import_folder(store, folder)
-    ann = store.get_annotation(f"{VIEW}/Projection_1")
+    ann = store.get_annotation(f"{VIEW}/Projection_1", TargetKind.NODE)
     assert ann.stale and ann.stale_reason == "node removed"
 
 
@@ -114,8 +114,8 @@ def test_deleted_file(store, folder):
     assert report.stale_annotations == 2
     assert [v.id for v in store.list_views()] == [PRODUCER]
     assert store.node_hashes(VIEW) == {}
-    for target in (VIEW, f"{VIEW}/Join_1"):
-        ann = store.get_annotation(target)
+    for target, kind in ((VIEW, TargetKind.VIEW), (f"{VIEW}/Join_1", TargetKind.NODE)):
+        ann = store.get_annotation(target, kind)
         assert ann.stale and ann.stale_reason == "view removed"
     assert report.estate.views == [PRODUCER]
 
@@ -186,10 +186,10 @@ def test_unchanged_file_with_different_result_is_reparsed(store, folder, tmp_pat
     assert (report.changed, report.unchanged, report.reparsed) == (0, 1, 1)
     assert store.raw_result_json(VIEW) == good
     assert report.stale_annotations == 1
-    gone = store.get_annotation(f"{VIEW}/GONE_1")
+    gone = store.get_annotation(f"{VIEW}/GONE_1", TargetKind.NODE)
     assert gone.stale and gone.stale_reason == "node removed"
-    assert not store.get_annotation(VIEW).stale
-    assert not store.get_annotation(f"{VIEW}/Join_1").stale
+    assert not store.get_annotation(VIEW, TargetKind.VIEW).stale
+    assert not store.get_annotation(f"{VIEW}/Join_1", TargetKind.NODE).stale
 
 
 def test_already_stale_annotation_kept_on_unchanged_view(store, folder):
@@ -199,7 +199,7 @@ def test_already_stale_annotation_kept_on_unchanged_view(store, folder):
     import_folder(store, folder)
     report = import_folder(store, folder)
     assert report.unchanged == 2 and report.stale_annotations == 0
-    ann = store.get_annotation(f"{VIEW}/Projection_1")
+    ann = store.get_annotation(f"{VIEW}/Projection_1", TargetKind.NODE)
     assert ann.stale and ann.stale_reason == "node changed"
 
 
@@ -211,7 +211,7 @@ def test_stale_count_is_newly_marked_only(store, folder):
     (folder / MAIN_FILE).unlink()
     report = import_folder(store, folder)
     assert report.removed == 1 and report.stale_annotations == 0
-    assert store.get_annotation(VIEW).stale_reason == "view removed"
+    assert store.get_annotation(VIEW, TargetKind.VIEW).stale_reason == "view removed"
 
 
 def test_moved_file_refreshes_location_without_staling(store, folder):
@@ -225,7 +225,7 @@ def test_moved_file_refreshes_location_without_staling(store, folder):
     summary = {v.id: v for v in store.list_views()}[PRODUCER]
     assert summary.package_path == "pkg"
     assert store.load_result(PRODUCER).view.package_path == "pkg"
-    assert not store.get_annotation(PRODUCER).stale
+    assert not store.get_annotation(PRODUCER, TargetKind.VIEW).stale
 
 
 def test_scan_warnings_carried(store, folder):
@@ -251,5 +251,5 @@ def test_failure_rolls_back_whole_import(store, folder, monkeypatch):
     with pytest.raises(RuntimeError):
         import_folder(store, folder)
     assert sorted(store.view_hashes()) == [VIEW, PRODUCER]
-    assert not store.get_annotation(VIEW).stale
+    assert not store.get_annotation(VIEW, TargetKind.VIEW).stale
     assert "2024" not in _filter_text(store, "Projection_1")

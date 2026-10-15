@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from app.enrich.deps import resolve_dependencies
 from app.ingest.scan import ScannedView, scan_folder
-from app.ir.models import Estate, IRWarning, ParseStatus, Severity
+from app.ir.models import Estate, IRWarning, ParseStatus, Severity, TargetKind
 from app.ir.store import Store, node_raw_hashes
 
 VIEW_FILE_CHANGED = "view file changed"
@@ -74,9 +74,11 @@ def import_folder(store: Store, folder: Path, name: str | None = None) -> Import
 
         present = {item.result.view.id for item in scanned}
         for view_id in sorted(set(stored_hashes) - present):
-            targets = [view_id, *store.node_hashes(view_id)]
+            node_ids = sorted(store.node_hashes(view_id))
             store.delete_view(view_id)
-            report.stale_annotations += store.mark_stale(targets, VIEW_REMOVED)
+            report.stale_annotations += (
+                store.mark_stale([view_id], VIEW_REMOVED, TargetKind.VIEW)
+                + store.mark_stale(node_ids, VIEW_REMOVED, TargetKind.NODE))
             report.removed += 1
 
         previous = store.get_project()
@@ -96,9 +98,9 @@ def _replace_changed(store: Store, item: ScannedView) -> int:
     store.upsert_view(item)
     changed = [nid for nid, h in old_nodes.items() if nid in new_nodes and new_nodes[nid] != h]
     removed = [nid for nid in old_nodes if nid not in new_nodes]
-    return (store.mark_stale([view_id], VIEW_FILE_CHANGED)
-            + store.mark_stale(sorted(changed), NODE_CHANGED)
-            + store.mark_stale(sorted(removed), NODE_REMOVED))
+    return (store.mark_stale([view_id], VIEW_FILE_CHANGED, TargetKind.VIEW)
+            + store.mark_stale(sorted(changed), NODE_CHANGED, TargetKind.NODE)
+            + store.mark_stale(sorted(removed), NODE_REMOVED, TargetKind.NODE))
 
 
 def _replace_reparsed(store: Store, item: ScannedView) -> int:
@@ -106,7 +108,7 @@ def _replace_reparsed(store: Store, item: ScannedView) -> int:
     old_nodes = store.node_hashes(view_id)
     new_nodes = {node.id for node in item.result.nodes}
     store.upsert_view(item)
-    return store.mark_stale(sorted(set(old_nodes) - new_nodes), NODE_REMOVED)
+    return store.mark_stale(sorted(set(old_nodes) - new_nodes), NODE_REMOVED, TargetKind.NODE)
 
 
 def _unique(scanned: list[ScannedView], warnings: list[IRWarning]) -> list[ScannedView]:

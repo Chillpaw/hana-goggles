@@ -29,7 +29,7 @@ from app.enrich.deps import _sort_key as estate_preference
 from app.enrich.deps import resolve_dependencies
 from app.generators.describe import NodeDescription, describe_node, describe_view, render_expression
 from app.generators.lineage import MISSING_TYPE, view_elements
-from app.ingest.importer import import_folder
+from app.ingest.importer import VIEW_REMOVED, import_folder
 from app.ir.graph import downstream, upstream
 from app.ir.models import (
     Annotation,
@@ -47,7 +47,6 @@ from app.web.deps import get_existing_store
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TABS = {"graph": "Graph", "steps": "Steps", "columns": "Columns", "warnings": "Warnings",
         "raw": "Raw XML", "notes": "Notes"}
-NOTE_FIELDS = ("purpose_text", "owner", "notes")
 MAX_NOTE_CHARS = 20_000
 SIGNOFF_VALUES = [str(s) for s in SignoffStatus]
 
@@ -230,6 +229,7 @@ def views(request: Request, sort: str = "name", q: str = "",
     producers, consumers = _direct_links(loaded.estate)
     annotations = store.list_annotations()
     view_notes = {a.target_id: a for a in annotations if a.target_kind == TargetKind.VIEW}
+    _, removed_notes = orphaned_notes(annotations, set(loaded.results), _all_node_ids(loaded))
 
     rows = [{
         "id": s.id, "package": s.package_path, "view_type": str(s.view_type),
@@ -254,7 +254,7 @@ def views(request: Request, sort: str = "name", q: str = "",
     return templates.TemplateResponse(request, "views.html", {
         "project": project, "rows": rows, "sort_key": key, "descending": descending, "q": q,
         "total": len(loaded.summaries), "estate": estate,
-        "removed_view_notes": [a for a in view_notes.values() if a.target_id not in loaded.results],
+        "removed_notes": removed_notes,
         "internal_count": sum(1 for d in estate.dependencies if d.internal),
         "sort_columns": [("name", "View"), ("package", "Package"), ("type", "Type"),
                          ("category", "Category"), ("nodes", "Nodes"), ("coverage", "Coverage"),
@@ -281,13 +281,13 @@ def _direct_links(estate: Estate) -> tuple[dict[str, list[str]], dict[str, list[
 @router.get("/views/{view_id:path}", response_class=HTMLResponse)
 def view_page(request: Request, view_id: str, tab: str = "graph",
               store: Store | None = Depends(get_existing_store)):
-    context = _view_context(store, view_id, tab)
+    context = view_context(store, view_id, tab)
     if isinstance(context, str):
-        return _not_found(request, context)
+        return not_found(request, context)
     return templates.TemplateResponse(request, "view.html", context)
 
 
-def _view_context(store: Store | None, view_id: str, tab: str) -> dict | str:
+def view_context(store: Store | None, view_id: str, tab: str) -> dict | str:
     """Everything view.html needs, or a "not found" message."""
     project = store.get_project() if store is not None else None
     if store is None or project is None:
@@ -304,7 +304,8 @@ def _view_context(store: Store | None, view_id: str, tab: str) -> dict | str:
     steps = [(nodes_by_id[d.node_id], d) for d in descriptions if d.node_id in nodes_by_id]
     leaf_ids = {d.producer for d in estate.dependencies if d.consumer == view_id and not d.internal}
     annotations = store.list_annotations()
-    note = next((a for a in annotations if a.target_id == view_id), None)
+    note = next((a for a in annotations
+                 if a.target_kind == TargetKind.VIEW and a.target_id == view_id), None)
 
     context = {
         "project": project, "result": result, "view": result.view, "tab": tab,
@@ -318,33 +319,45 @@ def _view_context(store: Store | None, view_id: str, tab: str) -> dict | str:
         "node_names": {n.id: n.name for n in result.nodes},
         "warning_counts": Counter(w.node_id for w in result.warnings if w.node_id),
         "elements": _graph_elements(result, descriptions) if tab == "graph" else None,
-        # A row of the other kind under this id is not this view's note (see _note_conflict).
-        "note": note if note is not None and note.target_kind == TargetKind.VIEW else None,
-        "note_conflict": note is not None and note.target_kind != TargetKind.VIEW,
-        "form": None, "form_error": None,
+        "note": note, "form": None, "form_error": None,
     }
     if tab == "notes":
         context["step_notes"] = [(nodes_by_id[a.target_id], a) for a in annotations
                                  if a.target_kind == TargetKind.NODE and a.target_id in nodes_by_id]
-        context["orphan_notes"] = orphaned_node_notes(
-            view_id, set(nodes_by_id), set(loaded.results), annotations)
+        by_view, _ = orphaned_notes(annotations, set(loaded.results), _all_node_ids(loaded))
+        context["orphan_notes"] = by_view.get(view_id, [])
     return context
 
 
-def orphaned_node_notes(view_id: str, node_ids: set[str], view_ids: set[str],
-                        annotations: list[Annotation]) -> list[Annotation]:
-    """Node notes that belong to `view_id` but whose step no longer exists in it.
+def _all_node_ids(loaded: Loaded) -> set[str]:
+    return {n.id for result in loaded.results.values() for n in result.nodes}
 
-    A node id is `<view id>/<node name>`, and view ids may themselves contain `/`, so a
-    note belongs to the longest existing view id that prefixes it."""
-    found = []
+
+def orphaned_notes(annotations: list[Annotation], view_ids: set[str], node_ids: set[str],
+                   ) -> tuple[dict[str, list[Annotation]], list[Annotation]]:
+    """Notes whose target no longer exists, so a page can show them instead of hiding them.
+
+    Returns (step notes by the existing view they belong to, notes of removed views).
+    A node id is `<view id>/<node name>` and view ids may contain `/`, so a step note
+    belongs to the longest existing view id that prefixes it, with one exception: a note
+    the importer marked "view removed" belongs to a removed view even when a shorter
+    existing view id also prefixes it (view `A/B` removed: `A/B/X` is not view A's step).
+    A view note belongs to removed views when its view does not exist."""
+    by_view: dict[str, list[Annotation]] = {}
+    removed: list[Annotation] = []
     for a in annotations:
-        if a.target_kind != TargetKind.NODE or a.target_id in node_ids:
+        if a.target_kind == TargetKind.VIEW:
+            if a.target_id not in view_ids:
+                removed.append(a)
+            continue
+        if a.target_id in node_ids:
             continue
         owners = [v for v in view_ids if a.target_id.startswith(v + "/")]
-        if owners and max(owners, key=len) == view_id:
-            found.append(a)
-    return found
+        if not owners or (a.stale and a.stale_reason == VIEW_REMOVED):
+            removed.append(a)
+        else:
+            by_view.setdefault(max(owners, key=len), []).append(a)
+    return by_view, removed
 
 
 def _graph_elements(result: ParseResult, descriptions: list[NodeDescription]) -> list[dict]:
@@ -361,100 +374,18 @@ def _graph_elements(result: ParseResult, descriptions: list[NodeDescription]) ->
     return elements
 
 
-# ---------------------------------------------------------------- notes and sign-off
-
-@dataclass
-class NoteForm:
-    """A submitted notes form. Fields the form did not send are None (kept as stored)."""
-
-    values: dict[str, str | None]
-    error: str | None
-
-
-async def _read_note_form(request: Request) -> NoteForm:
-    # Parsed by hand, like /import: python-multipart is not a dependency.
-    form = parse_qs((await request.body()).decode("utf-8", "replace"), keep_blank_values=True)
-    values: dict[str, str | None] = {
-        name: (form[name][0] if name in form else None)
-        for name in (*NOTE_FIELDS, "signoff_status")}
-    errors = []
-    status = values["signoff_status"]
-    if status is not None and status not in SIGNOFF_VALUES:
-        errors.append(f"{status[:40]!r} is not a sign-off status; choose one of "
-                      f"{', '.join(SIGNOFF_VALUES)}.")
-    labels = {"purpose_text": "Purpose", "owner": "Owner", "notes": "Notes"}
-    for name in NOTE_FIELDS:
-        text = values[name]
-        if text is not None and len(text) > MAX_NOTE_CHARS:
-            errors.append(f"{labels[name]} is {len(text)} characters long; the limit is "
-                          f"{MAX_NOTE_CHARS}.")
-    return NoteForm(values, " ".join(errors) or None)
-
-
-def _note_conflict(existing: Annotation | None, kind: TargetKind) -> str | None:
-    """The annotation table is keyed by id alone, so a view and a step that share an id
-    cannot both have a note. Refuse rather than overwrite the other one."""
-    if existing is not None and existing.target_kind != kind:
-        return (f"This id already has a note on a {existing.target_kind}, so a note on this "
-                f"{kind} cannot be saved without replacing it.")
-    return None
-
-
-def _merged(existing: Annotation | None, target_id: str, kind: TargetKind,
-            values: dict[str, str | None]) -> Annotation:
-    base = existing or Annotation(target_id=target_id, target_kind=kind)
-    update = {k: v for k, v in values.items() if v is not None}
-    return Annotation.model_validate({**base.model_dump(), **update})
-
-
-@router.post("/notes", response_class=HTMLResponse)
-async def post_view_notes(request: Request, view: str,
-                          store: Store | None = Depends(get_existing_store)):
-    form = await _read_note_form(request)
-    context = _view_context(store, view, "notes")
-    if isinstance(context, str):
-        return _not_found(request, context)
-    assert store is not None  # _view_context returned a page
-    existing = store.get_annotation(view)
-    error = form.error or _note_conflict(existing, TargetKind.VIEW)
-    if error:
-        context.update(form=form.values, form_error=error)
-        return templates.TemplateResponse(request, "view.html", context, status_code=400)
-    store.save_annotation(_merged(existing, view, TargetKind.VIEW, form.values))
-    return RedirectResponse(view_url(view) + "?tab=notes", status_code=303)
-
-
 # ---------------------------------------------------------------- node panel (htmx fragment)
 
 @router.get("/node", response_class=HTMLResponse)
 def node_panel(request: Request, view: str, node: str,
                store: Store | None = Depends(get_existing_store)):
-    context = _node_context(store, view, node)
+    context = node_context(store, view, node)
     if isinstance(context, str):
-        return _not_found(request, context, fragment=True)
+        return not_found(request, context, fragment=True)
     return templates.TemplateResponse(request, "_node_panel.html", context)
 
 
-@router.post("/node/notes", response_class=HTMLResponse)
-async def post_node_notes(request: Request, view: str, node: str,
-                          store: Store | None = Depends(get_existing_store)):
-    form = await _read_note_form(request)
-    context = _node_context(store, view, node)
-    if isinstance(context, str):
-        return _not_found(request, context, fragment=True)
-    assert store is not None
-    existing = store.get_annotation(node)
-    error = form.error or _note_conflict(existing, TargetKind.NODE)
-    if error:
-        # 400: viewgraph.js swaps a 400 into the panel, so the error and the typed text show.
-        context.update(form=form.values, form_error=error)
-        return templates.TemplateResponse(request, "_node_panel.html", context, status_code=400)
-    context.update(note=store.save_annotation(_merged(existing, node, TargetKind.NODE, form.values)),
-                   saved=True)
-    return templates.TemplateResponse(request, "_node_panel.html", context)
-
-
-def _node_context(store: Store | None, view: str, node: str) -> dict | str:
+def node_context(store: Store | None, view: str, node: str) -> dict | str:
     project = store.get_project() if store is not None else None
     if store is None or project is None:
         return "No project has been imported."
@@ -467,19 +398,17 @@ def _node_context(store: Store | None, view: str, node: str) -> dict | str:
     if result is None or found is None:
         return f"There is no step {node} in view {view}."
     resolved = next((ds.resolved_view_id for ds in result.data_sources if ds.id == found.id), None)
-    note = store.get_annotation(found.id)
     return {
         "view": result.view, "node": found,
         "description": describe_node(result, found, loaded.estate),
         "warnings": [w for w in result.warnings if w.node_id == found.id],
         "resolved_view": resolved,
-        "note": note if note is not None and note.target_kind == TargetKind.NODE else None,
-        "note_conflict": note is not None and note.target_kind != TargetKind.NODE,
+        "note": store.get_annotation(found.id, TargetKind.NODE),
         "form": None, "form_error": None, "saved": False,
     }
 
 
-def _not_found(request: Request, message: str, fragment: bool = False) -> Response:
+def not_found(request: Request, message: str, fragment: bool = False) -> Response:
     if fragment:
         # 200, not 404: htmx swaps only 2xx responses, and the panel must say what went wrong.
         return HTMLResponse(f'<p class="callout bad">{escape(message)}</p>', status_code=200)

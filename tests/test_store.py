@@ -32,7 +32,7 @@ def test_creates_schema_and_reopens(tmp_path):
 
     conn = sqlite3.connect(db)
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 1
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     finally:
         conn.close()
@@ -51,6 +51,30 @@ def test_unknown_user_version_refused(tmp_path):
     conn.close()
     with pytest.raises(StoreVersionError, match="99"):
         Store(db)
+
+
+def test_version_1_db_refused(tmp_path):
+    """Version 1 keyed annotations by id alone; no migration (no real data existed)."""
+    db = tmp_path / "p.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE annotation (target_id TEXT PRIMARY KEY)")
+    conn.execute("PRAGMA user_version = 1")
+    conn.close()
+    with pytest.raises(StoreVersionError, match="version 1"):
+        Store(db)
+
+
+def test_view_and_node_annotations_with_one_id_are_separate(tmp_path):
+    with Store(tmp_path / "p.db") as store:
+        store.save_annotation(Annotation(target_id="A/B", target_kind=TargetKind.VIEW, notes="v"))
+        store.save_annotation(Annotation(target_id="A/B", target_kind=TargetKind.NODE, notes="n"))
+        assert store.get_annotation("A/B", TargetKind.VIEW).notes == "v"
+        assert store.get_annotation("A/B", TargetKind.NODE).notes == "n"
+        assert store.mark_stale(["A/B"], "view removed", TargetKind.VIEW) == 1
+        assert store.get_annotation("A/B", TargetKind.VIEW).stale
+        assert not store.get_annotation("A/B", TargetKind.NODE).stale
+        assert [(a.target_kind, a.target_id) for a in store.list_annotations()] == [
+            ("node", "A/B"), ("view", "A/B")]
 
 
 def test_context_manager_closes(tmp_path):
@@ -90,25 +114,25 @@ def test_view_round_trip_and_summaries(tmp_path):
 
 def test_annotation_save_load_and_stale(tmp_path):
     with Store(tmp_path / "p.db") as store:
-        assert store.get_annotation("X") is None
+        assert store.get_annotation("X", TargetKind.VIEW) is None
         saved = store.save_annotation(Annotation(
             target_id=f"{VIEW}/Join_1", target_kind=TargetKind.NODE, purpose_text="joins",
             owner="me", signoff_status=SignoffStatus.REVIEWED, notes="n"))
         assert saved.updated_at
-        loaded = store.get_annotation(f"{VIEW}/Join_1")
+        loaded = store.get_annotation(f"{VIEW}/Join_1", TargetKind.NODE)
         assert loaded == saved
         assert loaded.stale is False and loaded.stale_reason is None
 
-        assert store.mark_stale([f"{VIEW}/Join_1", "missing"], "node changed") == 1
-        stale = store.get_annotation(f"{VIEW}/Join_1")
+        assert store.mark_stale([f"{VIEW}/Join_1", "missing"], "node changed", TargetKind.NODE) == 1
+        stale = store.get_annotation(f"{VIEW}/Join_1", TargetKind.NODE)
         assert stale.stale is True and stale.stale_reason == "node changed"
         # already stale: not counted again, but the reason is updated
-        assert store.mark_stale([f"{VIEW}/Join_1"], "view removed") == 0
-        stale = store.get_annotation(f"{VIEW}/Join_1")
+        assert store.mark_stale([f"{VIEW}/Join_1"], "view removed", TargetKind.NODE) == 0
+        stale = store.get_annotation(f"{VIEW}/Join_1", TargetKind.NODE)
         assert stale.stale is True and stale.stale_reason == "view removed"
 
         store.save_annotation(stale)  # saving clears stale
-        cleared = store.get_annotation(f"{VIEW}/Join_1")
+        cleared = store.get_annotation(f"{VIEW}/Join_1", TargetKind.NODE)
         assert cleared.stale is False and cleared.stale_reason is None
 
         store.save_annotation(Annotation(target_id=VIEW, target_kind=TargetKind.VIEW))
@@ -121,7 +145,7 @@ def test_annotation_survives_view_delete(tmp_path):
         store.upsert_view(scanned)
         store.save_annotation(Annotation(target_id=VIEW, target_kind=TargetKind.VIEW))
         store.delete_view(VIEW)
-        assert store.get_annotation(VIEW) is not None
+        assert store.get_annotation(VIEW, TargetKind.VIEW) is not None
 
 
 def test_transaction_rolls_back(tmp_path):

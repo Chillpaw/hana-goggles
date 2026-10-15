@@ -81,7 +81,6 @@
     {% set f_notes = values.notes if values.notes is not none else (note.notes if note else "") %}
     {% set f_status = values.signoff_status if values.signoff_status in signoff_values else (note.signoff_status if note else "draft") %}
     {% if form_error %}<p class="callout bad" role="alert"><strong>Not saved.</strong> {{ form_error }}</p>{% endif %}
-    {% if note_conflict %}<p class="callout bad">A note on a step uses the same id as this view, so this view's notes cannot be saved here.</p>{% endif %}
     <p>
       {% if note %}Last updated {{ note.updated_at }}{% else %}<span class="muted">Not saved yet.</span>{% endif %}
       {{ stale_badge(note) }}

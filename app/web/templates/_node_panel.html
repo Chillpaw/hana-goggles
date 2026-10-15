@@ -10,7 +10,6 @@
   {% endif %}
   <h3>Notes on this step {{ stale_badge(note) }}</h3>
   {% if form_error %}<p class="callout bad" role="alert"><strong>Not saved.</strong> {{ form_error }}</p>{% endif %}
-  {% if note_conflict %}<p class="callout bad">A view uses the same id as this step, so this step's notes cannot be saved.</p>{% endif %}
   {% if saved %}<p class="badge ok" role="status">Saved</p>{% endif %}
   {% set f = form or {"owner": none, "notes": none, "signoff_status": none} %}
   <form class="notes compact" hx-post="{{ node_notes_url(view.id, node.id) }}" hx-target="#node-panel">

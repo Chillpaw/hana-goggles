@@ -77,14 +77,15 @@
     Coverage: share of a view's steps the parser fully understood.
     Sign-off: set on a view's Notes tab; "Stale" means the view changed since the note was saved.</p>
 
-  {% if removed_view_notes %}
+  {% if removed_notes %}
     <h2>Notes on views that no longer exist</h2>
-    <p class="muted">These views are no longer in the imported folder. Their notes are kept.</p>
-    <table>
-      <thead><tr><th>View</th><th>Sign-off</th><th>Owner</th><th>Purpose</th><th>Notes</th><th>Updated</th></tr></thead>
+    <p class="muted">These views (or their steps) are no longer in the imported folder. Their notes are kept.</p>
+    <table class="removed-notes">
+      <thead><tr><th>On</th><th>Id</th><th>Sign-off</th><th>Owner</th><th>Purpose</th><th>Notes</th><th>Updated</th></tr></thead>
       <tbody>
-      {% for n in removed_view_notes %}
-        <tr><td class="mono">{{ n.target_id }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+      {% for n in removed_notes %}
+        <tr><td>{{ "view" if n.target_kind == "view" else "step" }}</td>
+            <td class="mono">{{ n.target_id }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
             <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.purpose_text }}</td>
             <td style="white-space: pre-wrap">{{ n.notes }}</td><td class="muted">{{ n.updated_at or "" }}</td></tr>
       {% endfor %}

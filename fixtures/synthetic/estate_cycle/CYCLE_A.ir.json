@@ -1,0 +1,141 @@
+{
+  "view": {
+    "id": "CYCLE_A",
+    "name": "CYCLE_A",
+    "package_path": null,
+    "view_type": "graphical",
+    "data_category": "CUBE",
+    "schema_version": "2.3",
+    "file_hash": "c5fcc7f55e94089906cf83bb2b898ce817bcdfbe9c1aca75872c77ef86eeeaaa",
+    "parse_status": "ok",
+    "coverage_pct": 100.0
+  },
+  "nodes": [
+    {
+      "id": "CYCLE_A/CYCLE_B",
+      "view_id": "CYCLE_A",
+      "node_type": "datasource",
+      "name": "CYCLE_B",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"CYCLE_B\" type=\"CALCULATION_VIEW\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <resourceUri>/pkg.synthetic/calculationviews/CYCLE_B</resourceUri>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "CYCLE_A/Projection_1",
+      "view_id": "CYCLE_A",
+      "node_type": "projection",
+      "name": "Projection_1",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xsi:type=\"Calculation:ProjectionView\" id=\"Projection_1\">\n      <descriptions/>\n      <viewAttributes>\n        <viewAttribute id=\"COL_1\"/>\n        <viewAttribute id=\"AMT_1\"/>\n      </viewAttributes>\n      <calculatedViewAttributes/>\n      <input node=\"#CYCLE_B\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"COL_1\" source=\"COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"AMT_1\" source=\"AMT_1\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "CYCLE_A/Projection_1/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "CYCLE_A/Projection_1/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "CYCLE_A/Semantics",
+      "view_id": "CYCLE_A",
+      "node_type": "output",
+      "name": "Semantics",
+      "raw": "<logicalModel xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" id=\"Projection_1\">\n    <attributes>\n      <attribute id=\"COL_1\" order=\"1\" attributeHierarchyActive=\"false\" displayAttribute=\"false\">\n        <descriptions defaultDescription=\"COL_1\"/>\n        <keyMapping columnObjectName=\"Projection_1\" columnName=\"COL_1\"/>\n      </attribute>\n    </attributes>\n    <calculatedAttributes/>\n    <privateDataFoundation>\n      <tableProxies/>\n      <joins/>\n      <layout>\n        <shapes/>\n      </layout>\n    </privateDataFoundation>\n    <baseMeasures>\n      <measure id=\"AMT_1\" order=\"2\" aggregationType=\"sum\" engineAggregation=\"sum\" measureType=\"simple\">\n        <descriptions defaultDescription=\"AMT_1\"/>\n        <measureMapping columnObjectName=\"Projection_1\" columnName=\"AMT_1\"/>\n      </measure>\n    </baseMeasures>\n    <calculatedMeasures/>\n    <restrictedMeasures/>\n    <localDimensions/>\n  </logicalModel>",
+      "columns": [
+        {
+          "id": "CYCLE_A/Semantics/COL_1",
+          "name": "COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "CYCLE_A/Semantics/AMT_1",
+          "name": "AMT_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    }
+  ],
+  "edges": [
+    {
+      "from_node": "CYCLE_A/CYCLE_B",
+      "to_node": "CYCLE_A/Projection_1",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "CYCLE_A/Projection_1",
+      "to_node": "CYCLE_A/Semantics",
+      "column_map": [
+        {
+          "target": "COL_1",
+          "source": "COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "AMT_1",
+          "source": "AMT_1",
+          "constant": null,
+          "null": false
+        }
+      ]
+    }
+  ],
+  "parameters": [],
+  "parameter_mappings": [],
+  "data_sources": [
+    {
+      "id": "CYCLE_A/CYCLE_B",
+      "kind": "calc_view",
+      "schema_name": null,
+      "name": "CYCLE_B",
+      "resource_uri": "/pkg.synthetic/calculationviews/CYCLE_B",
+      "resolved_view_id": null
+    }
+  ],
+  "warnings": []
+}

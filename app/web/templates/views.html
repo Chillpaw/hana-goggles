@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cycle_callout, stale_badge, signoff_badge %}
+{% block title %}Views · CalcView Migrator{% endblock %}
+{% block content %}
+  <h1>Views <span class="muted">({{ rows|length }}{% if rows|length != total %} of {{ total }}{% endif %})</span></h1>
+  <div class="muted">
+    {{ project.source_folder }} &middot; imported {{ project.imported_at }} &middot;
+    {{ internal_count }} view-to-view dependenc{{ "y" if internal_count == 1 else "ies" }} &middot;
+    {{ estate.leaf_sources|length }} leaf source{{ "" if estate.leaf_sources|length == 1 else "s" }}
+    &middot; <a href="/estate">Estate map</a>
+    <form class="inline" method="post" action="/import">
+      <input type="hidden" name="folder" value="{{ project.source_folder }}">
+      <button type="submit" title="Read the folder again; notes are kept">Re-import</button>
+    </form>
+  </div>
+
+  <section id="last-import">
+  {% if last_import %}
+    {% set r = last_import %}
+    <details class="callout{{ ' bad' if r.warnings }}">
+      <summary>Last import: Added {{ r.added }}, changed {{ r.changed }}, removed {{ r.removed }},
+        {{ r.warnings|length }} warning{{ "" if r.warnings|length == 1 else "s" }}</summary>
+      <ul>
+        <li>Added {{ r.added }}</li><li>Changed {{ r.changed }}</li>
+        <li>Unchanged {{ r.unchanged }}</li><li>Reparsed {{ r.reparsed }}</li>
+        <li>Removed {{ r.removed }}</li><li>Failed to parse {{ r.failed }}</li>
+        <li>Not stored {{ r.not_stored }}</li><li>Notes newly marked stale {{ r.stale_annotations }}</li>
+      </ul>
+    </details>
+    {% if r.warnings %}
+      <table class="import-warnings">
+        <thead><tr><th>Severity</th><th>Code</th><th>View</th><th>Message</th></tr></thead>
+        <tbody>
+        {% for w in r.warnings %}
+          <tr><td><span class="badge {{ w.severity }}">{{ w.severity }}</span></td>
+              <td class="mono">{{ w.code }}</td>
+              <td>{% if w.view_id in stored_ids %}<a href="{{ view_url(w.view_id) }}">{{ w.view_id }}</a>
+                  {%- elif w.view_id %}{{ w.view_id }}{% endif %}</td>
+              <td>{{ w.message }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% elif last_import_unreadable %}
+    <p class="callout bad">The last import report could not be read (it was written by an older
+      version). Re-import to refresh it.</p>
+  {% endif %}
+  </section>
+
+  {% for members in estate.cycles %}
+    {{ cycle_callout(members, "these views read from each other, so no deploy order works for them:") }}
+  {% endfor %}
+  {% if estate.warnings %}
+    <details class="callout">
+      <summary>{{ estate.warnings|length }} estate warning{{ "" if estate.warnings|length == 1 else "s" }}
+        (dependencies between views)</summary>
+      <table>
+        <thead><tr><th>Severity</th><th>Code</th><th>View</th><th>Message</th></tr></thead>
+        <tbody>
+        {% for w in estate.warnings %}
+          <tr><td><span class="badge {{ w.severity }}">{{ w.severity }}</span></td>
+              <td class="mono">{{ w.code }}</td>
+              <td>{% if w.view_id %}<a href="{{ view_url(w.view_id) }}">{{ w.view_id }}</a>{% endif %}</td>
+              <td>{{ w.message }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+
+  <form method="get" action="/views">
+    <input type="hidden" name="sort" value="{{ '-' if descending else '' }}{{ sort_key }}">
+    <input type="text" name="q" value="{{ q }}" placeholder="Filter by name or package">
+    <button type="submit">Filter</button>
+    {% if q %}<a href="/views?sort={{ '-' if descending else '' }}{{ sort_key }}">clear</a>{% endif %}
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+      {% for key, label in sort_columns %}
+        {% set next = ("-" ~ key) if (key == sort_key and not descending) else key %}
+        <th{% if key in ("nodes", "coverage", "warnings", "depends", "usedby") %} class="num"{% endif %}>
+          <a href="/views?sort={{ next }}{% if q %}&amp;q={{ q|urlencode }}{% endif %}">{{ label }}</a>
+          {%- if key == sort_key %} {{ "&#9660;"|safe if descending else "&#9650;"|safe }}{% endif %}
+        </th>
+      {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+    {% for r in rows %}
+      <tr>
+        <td><a href="{{ view_url(r.id) }}">{{ r.id }}</a></td>
+        <td class="mono">{{ r.package or "" }}</td>
+        <td>{{ r.view_type }}</td>
+        <td>{{ r.data_category }}</td>
+        <td class="num">{{ r.node_count }}</td>
+        <td class="num">{{ "%.0f"|format(r.coverage_pct) }}%</td>
+        <td><span class="badge {{ r.parse_status }}">{{ r.parse_status }}</span></td>
+        <td class="num">{{ r.warning_count }}</td>
+        <td class="num depends">{{ r.depends }}</td>
+        <td class="num usedby">{{ r.usedby }}</td>
+        <td class="signoff">{{ signoff_badge(r.note) }} {{ stale_badge(r.note) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="11" class="muted">No views match.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">Reads views / Used by: direct dependencies on other views in this project.
+    Coverage: share of a view's steps the parser fully understood.
+    Sign-off: set on a view's Notes tab; "Stale" means the view changed since the note was saved.</p>
+
+  {% if removed_notes %}
+    <h2>Notes on views that no longer exist</h2>
+    <p class="muted">These views (or their steps) are no longer in the imported folder. Their notes are kept.</p>
+    <table class="removed-notes">
+      <thead><tr><th>On</th><th>Id</th><th>Sign-off</th><th>Owner</th><th>Purpose</th><th>Notes</th><th>Updated</th></tr></thead>
+      <tbody>
+      {% for n in removed_notes %}
+        <tr><td>{{ "view" if n.target_kind == "view" else "step" }}</td>
+            <td class="mono">{{ n.target_id }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+            <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.purpose_text }}</td>
+            <td style="white-space: pre-wrap">{{ n.notes }}</td><td class="muted">{{ n.updated_at or "" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+{% endblock %}

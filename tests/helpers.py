@@ -1,4 +1,13 @@
+from fastapi.testclient import TestClient
+
 from app.ir.models import Column, Node, ParseResult
+
+LOCAL = "http://127.0.0.1"
+
+
+def local_client(app) -> TestClient:
+    """A TestClient that sends Host: 127.0.0.1 (its default "testserver" is refused)."""
+    return TestClient(app, base_url=LOCAL)
 
 
 def node(result: ParseResult, name: str) -> Node:

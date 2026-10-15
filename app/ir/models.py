@@ -223,4 +223,86 @@ class ParseResult(IRModel):
     warnings: list[IRWarning] = Field(default_factory=list)
 
 
+class LeafKind(StrEnum):
+    TABLE = "table"
+    EXTERNAL_VIEW = "external_view"
+    TABLE_FUNCTION = "table_function"
+    UNKNOWN = "unknown"
+
+
+class LeafSource(IRModel):
+    """Something the estate reads but does not define: a table, or a view outside the folder."""
+
+    id: str  # "table:SCHEMA_1.TABLE_A", "view:SOME_VIEW", "table_function:...", "unknown:<view>/<ds>"
+    kind: LeafKind
+    schema_name: str | None = None
+    name: str
+    used_by: list[str] = Field(default_factory=list)  # view ids, sorted
+
+
+class ViewDependency(IRModel):
+    consumer: str  # view id
+    producer: str  # view id (internal) or LeafSource id (leaf)
+    data_source_id: str  # the consumer's DataSource node id
+    internal: bool
+
+
+class Estate(IRModel):
+    """Every view in a folder and how they depend on each other. Built from IR only."""
+
+    views: list[str] = Field(default_factory=list)  # view ids, sorted
+    dependencies: list[ViewDependency] = Field(default_factory=list)  # by (consumer, data_source_id)
+    leaf_sources: list[LeafSource] = Field(default_factory=list)  # by id
+    deploy_order: list[str] = Field(default_factory=list)  # producers before consumers
+    cycles: list[list[str]] = Field(default_factory=list)  # each sorted; list sorted
+    warnings: list[IRWarning] = Field(default_factory=list)
+
+
+class SignoffStatus(StrEnum):
+    DRAFT = "draft"
+    REVIEWED = "reviewed"
+    APPROVED = "approved"
+
+
+class TargetKind(StrEnum):
+    VIEW = "view"
+    NODE = "node"
+
+
+class Annotation(IRModel):
+    """A person's notes on a view or node, keyed by the deterministic IR id. Survives
+    re-import; marked stale (never deleted) when its target changes or disappears."""
+
+    target_id: str
+    target_kind: TargetKind
+    purpose_text: str = ""
+    owner: str = ""
+    signoff_status: SignoffStatus = SignoffStatus.DRAFT
+    notes: str = ""
+    stale: bool = False
+    stale_reason: str | None = None
+    updated_at: str | None = None  # ISO 8601 UTC, set by the store on save
+
+
+class ViewSummary(IRModel):
+    """One stored view's summary row (the full ParseResult is loaded separately)."""
+
+    id: str
+    rel_path: str
+    package_path: str | None = None
+    file_hash: str
+    view_type: ViewType
+    data_category: DataCategory
+    parse_status: ParseStatus
+    coverage_pct: float
+    node_count: int
+    warning_count: int
+
+
+class Project(IRModel):
+    name: str
+    source_folder: str
+    imported_at: str  # ISO 8601 UTC
+
+
 ExprNode.model_rebuild()

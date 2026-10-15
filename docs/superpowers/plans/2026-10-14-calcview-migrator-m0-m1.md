@@ -26,6 +26,8 @@
 
 ## Roadmap (M0–M10)
 
+> **Superseded on 2026-10-14** by the revised order in `2026-10-14-process-view-pathway.md` (process view first: M3 → M5+ → M4 → estate map, then M2 and the SQL work). The table below is kept as the original record.
+
 This document gives full detail for **M0 and M1** only. Each later milestone gets its own plan, written once its blockers clear. The scripted parser in particular needs a scripted skeleton before it can be planned properly.
 
 | # | Milestone | Plan status | Blocked by |

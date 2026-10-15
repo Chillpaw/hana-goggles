@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Synthetic fixture: the producer view GENERIC_TAX_REPORTING_CUBE reads as #SOURCE_VIEW_01.
+     Element order and nesting follow GENERIC_TAX_REPORTING_CUBE; every name is a dummy. -->
+<Calculation:scenario xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:Calculation="http://www.sap.com/ndb/BiModelCalculation.ecore" xmlns:Variable="http://www.sap.com/ndb/BiModelVariable.ecore" schemaVersion="2.3" id="SOURCE_VIEW_01" applyPrivilegeType="ANALYTIC_PRIVILEGE" checkAnalyticPrivileges="true" defaultClient="$$client$$" defaultLanguage="$$language$$" visibility="internal" calculationScenarioType="TREE_BASED" dataCategory="CUBE" enforceSqlExecution="false" executionSemantic="UNDEFINED" outputViewType="Projection">
+  <origin/>
+  <descriptions defaultDescription="SOURCE_VIEW_01"/>
+  <localVariables>
+    <variable id="IP_YEAR" parameter="true">
+      <descriptions defaultDescription="IP_YEAR"/>
+      <variableProperties datatype="NVARCHAR" length="4" mandatory="true">
+        <valueDomain type="empty"/>
+        <selection multiline="false" type="SingleValue"/>
+      </variableProperties>
+    </variable>
+  </localVariables>
+  <variableMappings/>
+  <dataSources>
+    <DataSource id="TABLE_C" type="DATA_BASE_TABLE">
+      <viewAttributes allViewAttributes="true"/>
+      <columnObject schemaName="SCHEMA_1" columnObjectName="TABLE_C"/>
+    </DataSource>
+  </dataSources>
+  <calculationViews>
+    <calculationView xsi:type="Calculation:ProjectionView" id="Projection_1">
+      <descriptions/>
+      <viewAttributes>
+        <viewAttribute id="COL_1"/>
+        <viewAttribute id="COL_2"/>
+        <viewAttribute id="COL_3"/>
+        <viewAttribute id="AMT_1"/>
+      </viewAttributes>
+      <calculatedViewAttributes/>
+      <input node="#TABLE_C">
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_1" source="COL_1"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_2" source="COL_2"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="COL_3" source="COL_3"/>
+        <mapping xsi:type="Calculation:AttributeMapping" target="AMT_1" source="AMT_1"/>
+      </input>
+      <filter>(&quot;COL_3&quot; = '$$IP_YEAR$$')</filter>
+    </calculationView>
+  </calculationViews>
+  <logicalModel id="Projection_1">
+    <attributes>
+      <attribute id="COL_1" order="1" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_1"/>
+        <keyMapping columnObjectName="Projection_1" columnName="COL_1"/>
+      </attribute>
+      <attribute id="COL_2" order="2" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_2"/>
+        <keyMapping columnObjectName="Projection_1" columnName="COL_2"/>
+      </attribute>
+      <attribute id="COL_3" order="3" attributeHierarchyActive="false" displayAttribute="false">
+        <descriptions defaultDescription="COL_3"/>
+        <keyMapping columnObjectName="Projection_1" columnName="COL_3"/>
+      </attribute>
+    </attributes>
+    <calculatedAttributes/>
+    <privateDataFoundation>
+      <tableProxies/>
+      <joins/>
+      <layout>
+        <shapes/>
+      </layout>
+    </privateDataFoundation>
+    <baseMeasures>
+      <measure id="AMT_1" order="4" aggregationType="sum" engineAggregation="sum" measureType="simple">
+        <descriptions defaultDescription="AMT_1"/>
+        <measureMapping columnObjectName="Projection_1" columnName="AMT_1"/>
+      </measure>
+    </baseMeasures>
+    <calculatedMeasures/>
+    <restrictedMeasures/>
+    <localDimensions/>
+  </logicalModel>
+  <layout>
+    <shapes>
+      <shape expanded="true" modelObjectName="Output" modelObjectNameSpace="MeasureGroup">
+        <upperLeftCorner x="40" y="85"/>
+      </shape>
+    </shapes>
+  </layout>
+</Calculation:scenario>

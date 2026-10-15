@@ -6,6 +6,7 @@ not depend on namespace prefixes or URIs. Anything not modelled raises a warning
 from __future__ import annotations
 
 import re
+from collections import Counter
 
 from lxml import etree
 
@@ -47,6 +48,18 @@ KNOWN_LOGICAL_MODEL_CHILDREN = {
 }
 # Containers that may appear empty inside deferred blocks without meaning anything.
 EMPTY_CONTAINER_PARTS = {"tableProxies", "joins", "layout", "shapes", "shape", "upperLeftCorner", "rectangleSize"}
+# Known children per element, checked by _check_children (UNKNOWN_ELEMENT otherwise).
+ROOT_CHILDREN = HANDLED_ROOT_CHILDREN | IGNORED_ROOT_CHILDREN
+VARIABLE_CHILDREN = {"descriptions", "variableProperties"}
+VARIABLE_PROPERTIES_CHILDREN = {"valueDomain", "selection", "defaultRange"}
+DATASOURCE_CHILDREN = {"viewAttributes", "columnObject", "resourceUri"}
+VIEW_ATTRIBUTE_CHILDREN = {"descriptions"}
+CALCULATED_VIEW_ATTRIBUTE_CHILDREN = {"descriptions", "formula"}
+INPUT_CHILDREN = {"mapping"}
+ATTRIBUTE_CHILDREN = {"descriptions", "keyMapping"}
+BASE_MEASURE_CHILDREN = {"descriptions", "measureMapping"}
+CALCULATED_ATTRIBUTE_CHILDREN = {"descriptions", "keyCalculation"}
+CALCULATED_MEASURE_CHILDREN = {"descriptions", "formula"}
 DEFERRED_LOGICAL_MODEL_BLOCKS = {
     "privateDataFoundation": "PRIVATE_DATA_FOUNDATION_DEFERRED",
     "restrictedMeasures": "RESTRICTED_MEASURES_DEFERRED",
@@ -54,13 +67,16 @@ DEFERRED_LOGICAL_MODEL_BLOCKS = {
 }
 
 
-def parse_graphical(root: etree._Element, view: View) -> ParseResult:
-    return _Builder(root, view).build()
+def parse_graphical(root: etree._Element, view: View, *, unknown: Counter | None = None) -> ParseResult:
+    """`unknown`, when given, collects (parent, child) local-name pairs for every
+    UNKNOWN_ELEMENT warning (used by the structure audit; never part of the IR)."""
+    return _Builder(root, view, unknown).build()
 
 
 class _Builder:
-    def __init__(self, root: etree._Element, view: View):
+    def __init__(self, root: etree._Element, view: View, unknown: Counter | None = None):
         self.root = root
+        self.unknown = unknown
         self.view = view
         self.vid = view.id
         self.nodes: dict[str, Node] = {}  # keyed by the id used in "#ref" attributes
@@ -72,7 +88,7 @@ class _Builder:
         self._pending_inputs: list[tuple[Node, etree._Element]] = []
 
     def build(self) -> ParseResult:
-        self._check_children(self.root, HANDLED_ROOT_CHILDREN | IGNORED_ROOT_CHILDREN, None)
+        self._check_children(self.root, ROOT_CHILDREN, None)
         self._parse_parameters()
         self._parse_data_sources()
         self._parse_calculation_views()
@@ -95,19 +111,19 @@ class _Builder:
         column_map: list[ColumnMapItem] = []
         for attr in x.children(x.child(lm, "attributes"), "attribute"):
             name = attr.get("id") or ""
-            self._check_output_column(attr, {"descriptions", "keyMapping"}, node, is_measure=False)
+            self._check_output_column(attr, ATTRIBUTE_CHILDREN, node, is_measure=False)
             node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.ATTRIBUTE))
             column_map.extend(_output_mapping(x.child(attr, "keyMapping"), name))
         for measure in x.children(x.child(lm, "baseMeasures"), "measure"):
             name = measure.get("id") or ""
-            self._check_output_column(measure, {"descriptions", "measureMapping"}, node, is_measure=True)
+            self._check_output_column(measure, BASE_MEASURE_CHILDREN, node, is_measure=True)
             node.columns.append(Column(id=make_id(node.id, name), name=name, kind=ColumnKind.MEASURE,
                                        aggregation=measure.get("aggregationType")))
             column_map.extend(_output_mapping(x.child(measure, "measureMapping"), name))
         for el in x.children(x.child(lm, "calculatedAttributes"), "calculatedAttribute"):
-            self._check_output_column(el, {"descriptions", "keyCalculation"}, node, is_measure=False)
+            self._check_output_column(el, CALCULATED_ATTRIBUTE_CHILDREN, node, is_measure=False)
         for el in x.children(x.child(lm, "calculatedMeasures"), "measure"):
-            self._check_output_column(el, {"descriptions", "formula"}, node, is_measure=True)
+            self._check_output_column(el, CALCULATED_MEASURE_CHILDREN, node, is_measure=True)
         node.columns.extend(self._calculated_columns(
             x.child(lm, "calculatedAttributes"), "calculatedAttribute", node, ColumnKind.ATTRIBUTE))
         node.columns.extend(self._calculated_columns(
@@ -121,7 +137,7 @@ class _Builder:
 
         top_ref = lm.get("id") or ""
         top = self.nodes.get(top_ref)
-        self.nodes[OUTPUT_NODE_NAME] = node
+        self._add_node(OUTPUT_NODE_NAME, node, lm)
         if top is None:
             node.understood = False
             self.warn("UNRESOLVED_INPUT", f"logicalModel reads #{top_ref}, which is not in this view",
@@ -165,9 +181,9 @@ class _Builder:
         for var in x.children(x.child(self.root, "localVariables"), "variable"):
             name = var.get("id") or ""
             props = x.child(var, "variableProperties")
-            self._check_children(var, {"descriptions", "variableProperties"}, None)
+            self._check_children(var, VARIABLE_CHILDREN, None)
             if props is not None:
-                self._check_children(props, {"valueDomain", "selection", "defaultRange"}, None)
+                self._check_children(props, VARIABLE_PROPERTIES_CHILDREN, None)
             attrs = props.attrib if props is not None else {}
             default = attrs.get("defaultValue")
             if default is None:
@@ -196,7 +212,7 @@ class _Builder:
             column_object = x.child(ds, "columnObject")
             ds_node = Node(id=node_id, view_id=self.vid, node_type=NodeType.DATASOURCE,
                            name=ds_id, raw=x.raw(ds), understood=kind is not DataSourceKind.UNKNOWN)
-            self._check_children(ds, {"viewAttributes", "columnObject", "resourceUri"}, ds_node)
+            self._check_children(ds, DATASOURCE_CHILDREN, ds_node)
             uri = x.text(x.child(ds, "resourceUri"))
             if column_object is not None:
                 schema_name, name = column_object.get("schemaName"), column_object.get("columnObjectName") or ds_id
@@ -204,7 +220,7 @@ class _Builder:
                 schema_name, name = None, uri.rpartition("/")[2] if uri else ds_id
             self.sources.append(DataSource(id=node_id, kind=kind, schema_name=schema_name, name=name,
                                            resource_uri=uri))
-            self.nodes[ds_id] = ds_node
+            self._add_node(ds_id, ds_node, ds)
 
     def _parse_variable_mappings(self) -> None:
         for m in x.children(x.child(self.root, "variableMappings"), "mapping"):
@@ -242,8 +258,16 @@ class _Builder:
                             raw=x.raw(cv), understood=False)
             else:
                 node = self._parse_node(cv, node_id, name, node_type)
-            self.nodes[name] = node
+            self._add_node(name, node, cv)
             self._pending_inputs.extend((node, inp) for inp in x.children(cv, "input"))
+
+    def _add_node(self, key: str, node: Node, el: etree._Element) -> None:
+        # A repeated id still replaces the earlier node (unchanged behaviour), but visibly.
+        if key in self.nodes:
+            self.warn("DUPLICATE_NODE_ID",
+                      f"id {key!r} is used by more than one node (data source, calculation view "
+                      f"or the {OUTPUT_NODE_NAME} output); only the last is kept", el=el, node_id=node.id)
+        self.nodes[key] = node
 
     def _parse_node(self, cv: etree._Element, node_id: str, name: str, node_type: NodeType) -> Node:
         node = Node(id=node_id, view_id=self.vid, node_type=node_type, name=name, raw=x.raw(cv))
@@ -251,7 +275,7 @@ class _Builder:
         node.columns.extend(self._view_attributes(cv, node))
         calculated = x.child(cv, "calculatedViewAttributes")
         for ca in x.children(calculated, "calculatedViewAttribute"):
-            self._check_children(ca, {"descriptions", "formula"}, node)
+            self._check_children(ca, CALCULATED_VIEW_ATTRIBUTE_CHILDREN, node)
         node.columns.extend(self._calculated_columns(
             calculated, "calculatedViewAttribute", node, ColumnKind.ATTRIBUTE))
         for f in x.children(cv, "filter"):
@@ -270,7 +294,7 @@ class _Builder:
         node_id = node.id
         columns = []
         for va in x.children(x.child(cv, "viewAttributes"), "viewAttribute"):
-            self._check_children(va, {"descriptions"}, node)
+            self._check_children(va, VIEW_ATTRIBUTE_CHILDREN, node)
             name = va.get("id") or ""
             aggregation = va.get("aggregationType")
             columns.append(Column(
@@ -331,7 +355,7 @@ class _Builder:
 
     def _resolve_inputs(self) -> None:
         for node, inp in self._pending_inputs:
-            self._check_children(inp, {"mapping"}, node)
+            self._check_children(inp, INPUT_CHILDREN, node)
             ref = _ref(inp.get("node"))
             source = self.nodes.get(ref)
             if source is None:
@@ -374,6 +398,8 @@ class _Builder:
             if x.local(c) not in known:
                 if node is not None:
                     node.understood = False
+                if self.unknown is not None:
+                    self.unknown[(x.local(el), x.local(c))] += 1
                 self.warn("UNKNOWN_ELEMENT", f"<{x.local(c)}> inside <{x.local(el)}> is not modelled",
                           el=c, node_id=node.id if node is not None else None)
 

@@ -13,6 +13,7 @@ dependencies = [
   "jinja2>=3.1",
   "lxml>=5.2",
   "pydantic>=2.6",
+  "networkx>=3.2",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +26,7 @@ calcview = "app.cli:main"
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["web/templates/*.html", "web/static/vendor/*"]
+app = ["web/templates/*.html", "web/static/vendor/*", "web/static/app/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

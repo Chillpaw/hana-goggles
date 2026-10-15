@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% from "_macros.html" import warnings_table, columns_table, type_badge, view_links, cycle_callout,
+     stale_badge, signoff_badge, signoff_select %}
+{% block title %}{{ view.id }} · CalcView Migrator{% endblock %}
+{% block style %}
+    .graph-layout { display: flex; gap: 12px; align-items: stretch; }
+    .graph-main { flex: 1 1 auto; min-width: 0; }
+    #graph { height: 72vh; min-height: 420px; border: 1px solid var(--line); background: #fbfcfd; }
+    #node-panel { flex: 0 0 400px; max-height: 76vh; overflow: auto; border: 1px solid var(--line);
+                  background: var(--panel); padding: 8px 12px; }
+    #legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; font-size: 12px; }
+    #legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+                      vertical-align: -2px; margin-right: 4px; border: 1px solid rgba(0,0,0,.25); }
+    #node-panel table { font-size: 12px; }
+    #node-panel th, #node-panel td { padding: 2px 4px; }
+    #legend .swatch.openable { background: #fff; border: 3px double #1f5fbf; }
+    #legend .swatch.not-understood { background: #fff; border: 2px dashed var(--bad); }
+    ol.steps { padding-left: 24px; }
+    ol.steps > li { margin: 0 0 10px; }
+    ol.steps .headline { font-size: 14px; }
+    ol.steps ul { margin: 2px 0 0; padding-left: 18px; }
+    .deps { margin: 2px 0; }
+    .deps .label { color: var(--muted); display: inline-block; min-width: 110px; }
+{% endblock %}
+{% block head %}
+  {% if tab == "graph" and not failed %}
+  <script src="/static/vendor/cytoscape.min.js"></script>
+  <script src="/static/vendor/dagre.min.js"></script>
+  <script src="/static/vendor/cytoscape-dagre.js"></script>
+  {% endif %}
+{% endblock %}
+{% block content %}
+  <p class="muted"><a href="/views">Views</a> &rsaquo;
+    <span style="float: right"><a href="/estate">Estate map</a> &middot;
+      <a href="{{ view_mmd_url(view.id) }}" download>Mermaid (.mmd)</a></span></p>
+  <h1>{{ view.id }}</h1>
+  <dl class="facts">
+    <div><dt>Package</dt><dd class="mono">{{ view.package_path or "(root)" }}</dd></div>
+    {% if summary %}<div><dt>File</dt><dd class="mono">{{ summary.rel_path }}</dd></div>{% endif %}
+    <div><dt>Type</dt><dd>{{ view.view_type }}</dd></div>
+    <div><dt>Category</dt><dd>{{ view.data_category }}</dd></div>
+    <div><dt>Parse</dt><dd><span class="badge {{ view.parse_status }}">{{ view.parse_status }}</span></dd></div>
+    <div><dt>Coverage</dt><dd>{{ "%.0f"|format(view.coverage_pct) }}%</dd></div>
+    <div><dt>Steps</dt><dd>{{ result.nodes|length }}</dd></div>
+    <div><dt>Warnings</dt><dd>{{ result.warnings|length + estate_warnings|length }}</dd></div>
+    <div><dt>Sign-off</dt><dd><a href="{{ view_url(view.id) }}?tab=notes">{{ signoff_badge(note) }}</a>
+      {{ stale_badge(note) }}</dd></div>
+  </dl>
+  <div class="deps"><span class="label">Reads views</span>
+    {% if reads_from %}{{ view_links(reads_from) }}{% else %}<span class="muted">none in this project</span>{% endif %}
+    {% if all_upstream|length > reads_from|length %}<span class="muted">({{ all_upstream|length }} upstream in total:
+      {{ view_links(all_upstream) }})</span>{% endif %}
+  </div>
+  <div class="deps"><span class="label">Used by</span>
+    {% if read_by %}{{ view_links(read_by) }}{% else %}<span class="muted">no view in this project</span>{% endif %}
+    {% if all_downstream|length > read_by|length %}<span class="muted">({{ all_downstream|length }} downstream in total:
+      {{ view_links(all_downstream) }})</span>{% endif %}
+  </div>
+  {% if leaves %}
+  <div class="deps"><span class="label">Reads sources</span>
+    {% for leaf in leaves %}<span class="mono">{{ leaf.schema_name ~ "." if leaf.schema_name else "" }}{{ leaf.name }}</span>
+      {%- if leaf.kind != "table" %} <span class="badge warning">{{ leaf.kind|replace("_", " ") }}</span>{% endif %}
+      {%- if not loop.last %}, {% endif %}{% endfor %}
+  </div>
+  {% endif %}
+
+  {% for members in cycles %}
+    {{ cycle_callout(members, "this view is part of a loop of views that read from each other:") }}
+  {% endfor %}
+
+  <nav class="tabs">
+    {% for key, label in tabs.items() %}
+      <a href="{{ view_url(view.id) }}?tab={{ key }}"{% if key == tab %} class="active"{% endif %}>{{ label }}
+        {%- if key == "warnings" and (result.warnings or estate_warnings) %} ({{ result.warnings|length + estate_warnings|length }}){% endif %}
+        {%- if key == "notes" and note and note.stale %} <span class="badge stale">stale</span>{% endif %}</a>
+    {% endfor %}
+  </nav>
+
+  {% if tab == "notes" %}
+    {% set values = form or {"purpose_text": none, "owner": none, "notes": none, "signoff_status": none} %}
+    {% set f_purpose = values.purpose_text if values.purpose_text is not none else (note.purpose_text if note else "") %}
+    {% set f_owner = values.owner if values.owner is not none else (note.owner if note else "") %}
+    {% set f_notes = values.notes if values.notes is not none else (note.notes if note else "") %}
+    {% set f_status = values.signoff_status if values.signoff_status in signoff_values else (note.signoff_status if note else "draft") %}
+    {% if form_error %}<p class="callout bad" role="alert"><strong>Not saved.</strong> {{ form_error }}</p>{% endif %}
+    <p>
+      {% if note %}Last updated {{ note.updated_at }}{% else %}<span class="muted">Not saved yet.</span>{% endif %}
+      {{ stale_badge(note) }}
+      {% if note and note.stale %}<span class="muted">Review the notes against the current view and save to clear this.</span>{% endif %}
+    </p>
+    <form class="notes" method="post" action="{{ notes_url(view.id) }}">
+      <label for="purpose_text">Purpose</label>
+      <textarea id="purpose_text" name="purpose_text" rows="3" maxlength="{{ max_note_chars }}"
+        placeholder="What this view is for, in business terms">{{ f_purpose }}</textarea>
+      <div class="row">
+        <div><label for="owner">Owner</label>
+          <input type="text" id="owner" name="owner" maxlength="{{ max_note_chars }}" value="{{ f_owner }}"></div>
+        <div><label for="signoff_status">Sign-off status</label>
+          {{ signoff_select(f_status, "signoff_status") }}</div>
+      </div>
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="8" maxlength="{{ max_note_chars }}">{{ f_notes }}</textarea>
+      <p><button type="submit">Save notes</button></p>
+    </form>
+
+    <h2>Notes on steps</h2>
+    {% if step_notes %}
+      <table>
+        <thead><tr><th>Step</th><th>Sign-off</th><th>Owner</th><th>Notes</th><th>Updated</th></tr></thead>
+        <tbody>
+        {% for node, n in step_notes %}
+          <tr><td>{{ node.name }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+              <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.notes }}</td>
+              <td class="muted">{{ n.updated_at or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No notes on individual steps. Click a step in the Graph tab to add one.</p>
+    {% endif %}
+
+    {% if orphan_notes %}
+      <h2>Notes on steps that no longer exist</h2>
+      <p class="muted">These steps were removed or renamed in the view file. Their notes are kept
+        so nothing is lost; copy anything still relevant into a current step's notes.</p>
+      <table>
+        <thead><tr><th>Step id</th><th>Sign-off</th><th>Owner</th><th>Purpose</th><th>Notes</th><th>Updated</th></tr></thead>
+        <tbody>
+        {% for n in orphan_notes %}
+          <tr><td class="mono">{{ n.target_id }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+              <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.purpose_text }}</td>
+              <td style="white-space: pre-wrap">{{ n.notes }}</td>
+              <td class="muted">{{ n.updated_at or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+  {% elif failed and tab in ("graph", "steps", "columns") %}
+    <div class="callout bad">
+      <strong>This view could not be parsed.</strong> No steps were read from the file, so there
+      is nothing to draw or describe. The warnings below say why.
+    </div>
+    {{ warnings_table(result.warnings, node_names) }}
+
+  {% elif tab == "graph" %}
+    <div class="graph-layout">
+      <div class="graph-main">
+        <div id="graph" aria-label="Data flow graph of {{ view.id }}"></div>
+        <div id="legend"></div>
+        <p class="muted">Data flows upwards: sources at the bottom, the view's output at the top.
+          Click a step for details; double-click a source view defined in this project to open it.</p>
+        <noscript><p class="callout">The graph needs JavaScript. The
+          <a href="{{ view_url(view.id) }}?tab=steps">Steps</a> tab has the same information as text.</p></noscript>
+      </div>
+      <aside id="node-panel"><p class="muted">Click a step in the graph to see what it does.</p></aside>
+    </div>
+    <script type="application/json" id="graph-data">{{ elements|tojson }}</script>
+
+  {% elif tab == "steps" %}
+    <p class="muted">Each step in data-flow order, from the sources to the view's output.</p>
+    <ol class="steps">
+    {% for node, d in steps %}
+      <li id="step-{{ loop.index }}">
+        <strong>{{ node.name }}</strong> {{ type_badge(node) }}
+        {%- if warning_counts[node.id] %} <span class="badge warning">{{ warning_counts[node.id] }} warning{{ "" if warning_counts[node.id] == 1 else "s" }}</span>{% endif %}
+        <div class="headline">{{ d.headline|prose }}</div>
+        {% if d.details %}
+          <ul>{% for line in d.details %}<li>{{ line|prose }}</li>{% endfor %}</ul>
+        {% endif %}
+      </li>
+    {% endfor %}
+    </ol>
+
+  {% elif tab == "columns" %}
+    {% for node, d in steps %}
+      <h3>{{ node.name }} {{ type_badge(node) }}</h3>
+      {{ columns_table(node) }}
+    {% endfor %}
+
+  {% elif tab == "warnings" %}
+    <h2>Parser warnings</h2>
+    {{ warnings_table(result.warnings, node_names) }}
+    {% if estate_warnings %}
+      <h2>Dependency warnings</h2>
+      {{ warnings_table(estate_warnings, node_names) }}
+    {% endif %}
+
+  {% elif tab == "raw" %}
+    {% for node in result.nodes %}
+      <details open>
+        <summary><strong>{{ node.name }}</strong> {{ type_badge(node) }}</summary>
+        <pre>{{ node.raw }}</pre>
+      </details>
+    {% else %}
+      <p class="callout bad">This view could not be parsed, so no step XML was kept.</p>
+      {{ warnings_table(result.warnings, node_names) }}
+    {% endfor %}
+  {% endif %}
+{% endblock %}
+{% block scripts %}
+  {% if tab == "graph" and not failed %}<script src="/static/app/viewgraph.js"></script>{% endif %}
+{% endblock %}

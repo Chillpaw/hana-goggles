@@ -6,7 +6,10 @@ Spec: `docs/CalcView Migrator — Spec v0.1.md`. Plans: `docs/superpowers/plans/
 - Install: `python3 -m venv .venv && source .venv/bin/activate && pip install -e ".[dev]" -c constraints.txt`
 - Test: `pytest -q`
 - Regenerate golden IR (then review the diff by hand): `UPDATE_GOLDEN=1 pytest tests/test_golden_ir.py`
-- Serve: `calcview serve` (always 127.0.0.1)
+- Regenerate estate goldens (then review the diff by hand): `UPDATE_GOLDEN=1 pytest tests/test_deps.py tests/test_estate.py`
+- Import: `calcview import <folder> --db <file>` (default db `$CALCVIEW_DB`, else `./calcview.db`)
+- Serve: `calcview serve --db <file>` (always 127.0.0.1)
+- Audit (structure only, no db): `calcview audit <folder>` (`--format json`, `--output FILE` writes UTF-8)
 
 ## Rules
 - Never read from or write to the network at runtime. Vendor every JS dependency into `app/web/static/vendor/`.

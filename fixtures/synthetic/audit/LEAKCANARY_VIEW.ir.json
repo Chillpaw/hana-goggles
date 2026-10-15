@@ -1,0 +1,557 @@
+{
+  "view": {
+    "id": "LEAKCANARY_VIEW",
+    "name": "LEAKCANARY_VIEW",
+    "package_path": null,
+    "view_type": "graphical",
+    "data_category": "CUBE",
+    "schema_version": "2.3",
+    "file_hash": "87b1eb50d5fb27c92a4e75fbb19cf6bfdeac5a7e48c9f1fd8cab9ad9d453807f",
+    "parse_status": "partial",
+    "coverage_pct": 71.4
+  },
+  "nodes": [
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_DS_TABLE",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "datasource",
+      "name": "LEAKCANARY_DS_TABLE",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" id=\"LEAKCANARY_DS_TABLE\" type=\"DATA_BASE_TABLE\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <columnObject schemaName=\"LEAKCANARY_SCHEMA\" columnObjectName=\"LEAKCANARY_TABLE\"/>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_DS_VIEW",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "datasource",
+      "name": "LEAKCANARY_DS_VIEW",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" id=\"LEAKCANARY_DS_VIEW\" type=\"CALCULATION_VIEW\">\n      <viewAttributes allViewAttributes=\"true\"/>\n      <resourceUri>/leakcanary.pkg/calculationviews/LEAKCANARY_UPSTREAM</resourceUri>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_DS_HDI",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "datasource",
+      "name": "LEAKCANARY_DS_HDI",
+      "raw": "<DataSource xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" id=\"LEAKCANARY_DS_HDI\" type=\"CALCULATION_VIEW\">\n      <resourceUri>leakcanary.hdi::LEAKCANARY_HDI_VIEW</resourceUri>\n    </DataSource>",
+      "columns": [],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "projection",
+      "name": "LEAKCANARY_PROJECTION",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" xsi:type=\"Calculation:ProjectionView\" id=\"LEAKCANARY_PROJECTION\" filterExpressionLanguage=\"COLUMN_ENGINE\">\n      <descriptions defaultDescription=\"LeakCanary_projection_description\"/>\n      <viewAttributes>\n        <viewAttribute id=\"LEAKCANARY_COL_1\"/>\n        <viewAttribute id=\"LEAKCANARY_COL_2\"/>\n        <viewAttribute id=\"LEAKCANARY_AMT\"/>\n      </viewAttributes>\n      <calculatedViewAttributes>\n        <calculatedViewAttribute datatype=\"NVARCHAR\" id=\"LEAKCANARY_CALC_PARSED\" length=\"20\" expressionLanguage=\"COLUMN_ENGINE\">\n          <formula>if(leftstr(\"LEAKCANARY_COL_1\", 3) = 'LEAKCANARY_LITERAL', 'LEAKCANARY_YES', $$LEAKCANARY_IP$$)</formula>\n        </calculatedViewAttribute>\n        <calculatedViewAttribute datatype=\"INTEGER\" id=\"LEAKCANARY_CALC_UNPARSED\" expressionLanguage=\"COLUMN_ENGINE\">\n          <formula>daysbetween(\"LEAKCANARY_QUOTED_FN\"(1), 'LEAKCANARY_LITERAL_FN(2)', '$$LEAKCANARY_PLACEHOLDER_FN$$'(3), $$LEAKCANARY_IP$$(4)</formula>\n        </calculatedViewAttribute>\n        <calculatedViewAttribute datatype=\"INTEGER\" id=\"LEAKCANARY_CALC_SQL\" expressionLanguage=\"SQL\">\n          <formula>LEAKCANARY_SQL_FUNC(LEAKCANARY_SQL_COL) + LEAKCANARY_OTHER_COL (1)</formula>\n        </calculatedViewAttribute>\n      </calculatedViewAttributes>\n      <input node=\"#LEAKCANARY_DS_TABLE\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_COL_1\" source=\"LEAKCANARY_SRC_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_COL_2\" source=\"LEAKCANARY_SRC_2\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_AMT\" source=\"LEAKCANARY_SRC_AMT\"/>\n      </input>\n      <filter>(\"LEAKCANARY_COL_2\" = 'LEAKCANARY_FILTER_VALUE')</filter>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION/LEAKCANARY_COL_1",
+          "name": "LEAKCANARY_COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION/LEAKCANARY_COL_2",
+          "name": "LEAKCANARY_COL_2",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION/LEAKCANARY_AMT",
+          "name": "LEAKCANARY_AMT",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION/LEAKCANARY_CALC_PARSED",
+          "name": "LEAKCANARY_CALC_PARSED",
+          "datatype": "NVARCHAR",
+          "length": 20,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": {
+            "text": "if(leftstr(\"LEAKCANARY_COL_1\", 3) = 'LEAKCANARY_LITERAL', 'LEAKCANARY_YES', $$LEAKCANARY_IP$$)",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "call",
+              "value": "if",
+              "args": [
+                {
+                  "kind": "binary",
+                  "value": "=",
+                  "args": [
+                    {
+                      "kind": "call",
+                      "value": "leftstr",
+                      "args": [
+                        {
+                          "kind": "column",
+                          "value": "LEAKCANARY_COL_1",
+                          "args": []
+                        },
+                        {
+                          "kind": "number",
+                          "value": "3",
+                          "args": []
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "string",
+                      "value": "LEAKCANARY_LITERAL",
+                      "args": []
+                    }
+                  ]
+                },
+                {
+                  "kind": "string",
+                  "value": "LEAKCANARY_YES",
+                  "args": []
+                },
+                {
+                  "kind": "param",
+                  "value": "LEAKCANARY_IP",
+                  "args": []
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION/LEAKCANARY_CALC_UNPARSED",
+          "name": "LEAKCANARY_CALC_UNPARSED",
+          "datatype": "INTEGER",
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": {
+            "text": "daysbetween(\"LEAKCANARY_QUOTED_FN\"(1), 'LEAKCANARY_LITERAL_FN(2)', '$$LEAKCANARY_PLACEHOLDER_FN$$'(3), $$LEAKCANARY_IP$$(4)",
+            "lang": "column_engine",
+            "ast": null
+          }
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION/LEAKCANARY_CALC_SQL",
+          "name": "LEAKCANARY_CALC_SQL",
+          "datatype": "INTEGER",
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": {
+            "text": "LEAKCANARY_SQL_FUNC(LEAKCANARY_SQL_COL) + LEAKCANARY_OTHER_COL (1)",
+            "lang": "sql",
+            "ast": null
+          }
+        }
+      ],
+      "filters": [
+        {
+          "expression": {
+            "text": "(\"LEAKCANARY_COL_2\" = 'LEAKCANARY_FILTER_VALUE')",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "binary",
+              "value": "=",
+              "args": [
+                {
+                  "kind": "column",
+                  "value": "LEAKCANARY_COL_2",
+                  "args": []
+                },
+                {
+                  "kind": "string",
+                  "value": "LEAKCANARY_FILTER_VALUE",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "join": null,
+      "understood": false
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_UNION",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "union",
+      "name": "LEAKCANARY_UNION",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" xsi:type=\"Calculation:UnionView\" id=\"LEAKCANARY_UNION\">\n      <viewAttributes>\n        <viewAttribute id=\"LEAKCANARY_COL_1\"/>\n        <viewAttribute id=\"LEAKCANARY_AMT\"/>\n        <viewAttribute id=\"LEAKCANARY_TAG\"/>\n      </viewAttributes>\n      <input emptyUnionBehavior=\"NO_ROW\" node=\"#LEAKCANARY_PROJECTION\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_COL_1\" source=\"LEAKCANARY_COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_AMT\" source=\"LEAKCANARY_AMT\"/>\n        <mapping xsi:type=\"Calculation:ConstantAttributeMapping\" target=\"LEAKCANARY_TAG\" null=\"false\" value=\"LEAKCANARY_CONSTANT\"/>\n      </input>\n      <input emptyUnionBehavior=\"NO_ROW\" node=\"#LEAKCANARY_DS_VIEW\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_COL_1\" source=\"LEAKCANARY_COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_AMT\" source=\"LEAKCANARY_AMT\"/>\n        <mapping xsi:type=\"Calculation:ConstantAttributeMapping\" target=\"LEAKCANARY_TAG\" null=\"true\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_UNION/LEAKCANARY_COL_1",
+          "name": "LEAKCANARY_COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_UNION/LEAKCANARY_AMT",
+          "name": "LEAKCANARY_AMT",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_UNION/LEAKCANARY_TAG",
+          "name": "LEAKCANARY_TAG",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_AGGREGATION",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "aggregation",
+      "name": "LEAKCANARY_AGGREGATION",
+      "raw": "<calculationView xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" xsi:type=\"Calculation:AggregationView\" id=\"LEAKCANARY_AGGREGATION\">\n      <viewAttributes>\n        <viewAttribute id=\"LEAKCANARY_COL_1\">\n          <filter xsi:type=\"AccessControl:SingleValueFilter\" including=\"true\" value=\"LEAKCANARY_ATTR_FILTER\"/>\n        </viewAttribute>\n        <viewAttribute id=\"LEAKCANARY_AMT\" aggregationType=\"sum\"/>\n      </viewAttributes>\n      <input node=\"#LEAKCANARY_UNION\">\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_COL_1\" source=\"LEAKCANARY_COL_1\"/>\n        <mapping xsi:type=\"Calculation:AttributeMapping\" target=\"LEAKCANARY_AMT\" source=\"LEAKCANARY_AMT\"/>\n      </input>\n    </calculationView>",
+      "columns": [
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_AGGREGATION/LEAKCANARY_COL_1",
+          "name": "LEAKCANARY_COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/LEAKCANARY_AGGREGATION/LEAKCANARY_AMT",
+          "name": "LEAKCANARY_AMT",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": false
+    },
+    {
+      "id": "LEAKCANARY_VIEW/Semantics",
+      "view_id": "LEAKCANARY_VIEW",
+      "node_type": "output",
+      "name": "Semantics",
+      "raw": "<logicalModel xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:Calculation=\"http://www.sap.com/ndb/BiModelCalculation.ecore\" xmlns:Variable=\"http://www.sap.com/ndb/BiModelVariable.ecore\" xmlns:lc=\"urn:leakcanary:ns\" id=\"LEAKCANARY_AGGREGATION\">\n    <descriptions defaultDescription=\"LeakCanary_output_description\"/>\n    <attributes>\n      <attribute id=\"LEAKCANARY_COL_1\" order=\"1\">\n        <descriptions defaultDescription=\"LeakCanary_column_description\"/>\n        <keyMapping columnObjectName=\"LEAKCANARY_AGGREGATION\" columnName=\"LEAKCANARY_COL_1\"/>\n      </attribute>\n    </attributes>\n    <calculatedAttributes/>\n    <baseMeasures>\n      <measure id=\"LEAKCANARY_AMT\" order=\"2\" aggregationType=\"sum\" measureType=\"simple\">\n        <descriptions defaultDescription=\"LeakCanary_measure_description\"/>\n        <measureMapping columnObjectName=\"LEAKCANARY_AGGREGATION\" columnName=\"LEAKCANARY_AMT\"/>\n      </measure>\n    </baseMeasures>\n    <calculatedMeasures>\n      <measure id=\"LEAKCANARY_CALC_MEASURE\" order=\"3\" aggregationType=\"sum\" measureType=\"simple\" datatype=\"DECIMAL\" length=\"17\" scale=\"2\" expressionLanguage=\"COLUMN_ENGINE\">\n        <formula>\"LEAKCANARY_AMT\" * 2</formula>\n      </measure>\n    </calculatedMeasures>\n  </logicalModel>",
+      "columns": [
+        {
+          "id": "LEAKCANARY_VIEW/Semantics/LEAKCANARY_COL_1",
+          "name": "LEAKCANARY_COL_1",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "attribute",
+          "aggregation": null,
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/Semantics/LEAKCANARY_AMT",
+          "name": "LEAKCANARY_AMT",
+          "datatype": null,
+          "length": null,
+          "scale": null,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": null
+        },
+        {
+          "id": "LEAKCANARY_VIEW/Semantics/LEAKCANARY_CALC_MEASURE",
+          "name": "LEAKCANARY_CALC_MEASURE",
+          "datatype": "DECIMAL",
+          "length": 17,
+          "scale": 2,
+          "kind": "measure",
+          "aggregation": "sum",
+          "expression": {
+            "text": "\"LEAKCANARY_AMT\" * 2",
+            "lang": "column_engine",
+            "ast": {
+              "kind": "binary",
+              "value": "*",
+              "args": [
+                {
+                  "kind": "column",
+                  "value": "LEAKCANARY_AMT",
+                  "args": []
+                },
+                {
+                  "kind": "number",
+                  "value": "2",
+                  "args": []
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "filters": [],
+      "join": null,
+      "understood": true
+    }
+  ],
+  "edges": [
+    {
+      "from_node": "LEAKCANARY_VIEW/LEAKCANARY_DS_TABLE",
+      "to_node": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+      "column_map": [
+        {
+          "target": "LEAKCANARY_COL_1",
+          "source": "LEAKCANARY_SRC_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_COL_2",
+          "source": "LEAKCANARY_SRC_2",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_AMT",
+          "source": "LEAKCANARY_SRC_AMT",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+      "to_node": "LEAKCANARY_VIEW/LEAKCANARY_UNION",
+      "column_map": [
+        {
+          "target": "LEAKCANARY_COL_1",
+          "source": "LEAKCANARY_COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_AMT",
+          "source": "LEAKCANARY_AMT",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_TAG",
+          "source": null,
+          "constant": "LEAKCANARY_CONSTANT",
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "LEAKCANARY_VIEW/LEAKCANARY_DS_VIEW",
+      "to_node": "LEAKCANARY_VIEW/LEAKCANARY_UNION",
+      "column_map": [
+        {
+          "target": "LEAKCANARY_COL_1",
+          "source": "LEAKCANARY_COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_AMT",
+          "source": "LEAKCANARY_AMT",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_TAG",
+          "source": null,
+          "constant": null,
+          "null": true
+        }
+      ]
+    },
+    {
+      "from_node": "LEAKCANARY_VIEW/LEAKCANARY_UNION",
+      "to_node": "LEAKCANARY_VIEW/LEAKCANARY_AGGREGATION",
+      "column_map": [
+        {
+          "target": "LEAKCANARY_COL_1",
+          "source": "LEAKCANARY_COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_AMT",
+          "source": "LEAKCANARY_AMT",
+          "constant": null,
+          "null": false
+        }
+      ]
+    },
+    {
+      "from_node": "LEAKCANARY_VIEW/LEAKCANARY_AGGREGATION",
+      "to_node": "LEAKCANARY_VIEW/Semantics",
+      "column_map": [
+        {
+          "target": "LEAKCANARY_COL_1",
+          "source": "LEAKCANARY_COL_1",
+          "constant": null,
+          "null": false
+        },
+        {
+          "target": "LEAKCANARY_AMT",
+          "source": "LEAKCANARY_AMT",
+          "constant": null,
+          "null": false
+        }
+      ]
+    }
+  ],
+  "parameters": [
+    {
+      "id": "LEAKCANARY_VIEW/@param/LEAKCANARY_IP",
+      "view_id": "LEAKCANARY_VIEW",
+      "name": "LEAKCANARY_IP",
+      "kind": "input_parameter",
+      "datatype": "NVARCHAR",
+      "length": 10,
+      "scale": null,
+      "default": "LEAKCANARY_DEFAULT",
+      "mandatory": false,
+      "used_in": [
+        {
+          "node_id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+          "usage": "calculation"
+        }
+      ]
+    },
+    {
+      "id": "LEAKCANARY_VIEW/@param/LEAKCANARY_RANGE_IP",
+      "view_id": "LEAKCANARY_VIEW",
+      "name": "LEAKCANARY_RANGE_IP",
+      "kind": "input_parameter",
+      "datatype": "LEAKCANARY_BAD_TYPE!",
+      "length": null,
+      "scale": null,
+      "default": "LEAKCANARY_LOW",
+      "mandatory": false,
+      "used_in": []
+    }
+  ],
+  "parameter_mappings": [
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "data_source_id": "LEAKCANARY_VIEW/LEAKCANARY_DS_VIEW",
+      "target_parameter": "LEAKCANARY_TARGET",
+      "local_parameter": "LEAKCANARY_IP",
+      "constant": null
+    },
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "data_source_id": "LEAKCANARY_VIEW/LEAKCANARY_DS_VIEW",
+      "target_parameter": "LEAKCANARY_TARGET_2",
+      "local_parameter": null,
+      "constant": "LEAKCANARY_CONSTANT_VALUE"
+    }
+  ],
+  "data_sources": [
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_DS_TABLE",
+      "kind": "table",
+      "schema_name": "LEAKCANARY_SCHEMA",
+      "name": "LEAKCANARY_TABLE",
+      "resource_uri": null,
+      "resolved_view_id": null
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_DS_VIEW",
+      "kind": "calc_view",
+      "schema_name": null,
+      "name": "LEAKCANARY_UPSTREAM",
+      "resource_uri": "/leakcanary.pkg/calculationviews/LEAKCANARY_UPSTREAM",
+      "resolved_view_id": null
+    },
+    {
+      "id": "LEAKCANARY_VIEW/LEAKCANARY_DS_HDI",
+      "kind": "calc_view",
+      "schema_name": null,
+      "name": "leakcanary.hdi::LEAKCANARY_HDI_VIEW",
+      "resource_uri": "leakcanary.hdi::LEAKCANARY_HDI_VIEW",
+      "resolved_view_id": null
+    }
+  ],
+  "warnings": [
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "node_id": null,
+      "code": "UNKNOWN_ELEMENT",
+      "message": "<informationModelLayout> inside <scenario> is not modelled",
+      "severity": "warning",
+      "line": 122
+    },
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "node_id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+      "code": "EXPR_PARSE_FAILED",
+      "message": "LEAKCANARY_PROJECTION column LEAKCANARY_CALC_UNPARSED: expected rparen, got '('",
+      "severity": "warning",
+      "line": null
+    },
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "node_id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+      "code": "SQL_EXPR_DEFERRED",
+      "message": "LEAKCANARY_PROJECTION column LEAKCANARY_CALC_SQL: SQL expression kept as text until M2",
+      "severity": "info",
+      "line": null
+    },
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "node_id": "LEAKCANARY_VIEW/LEAKCANARY_AGGREGATION",
+      "code": "UNKNOWN_ELEMENT",
+      "message": "<filter> inside <viewAttribute> is not modelled",
+      "severity": "warning",
+      "line": 91
+    },
+    {
+      "view_id": "LEAKCANARY_VIEW",
+      "node_id": "LEAKCANARY_VIEW/LEAKCANARY_PROJECTION",
+      "code": "UNKNOWN_PARAMETER_REF",
+      "message": "LEAKCANARY_PROJECTION references $$LEAKCANARY_PLACEHOLDER_FN$$",
+      "severity": "warning",
+      "line": null
+    }
+  ]
+}

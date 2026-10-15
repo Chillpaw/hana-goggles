@@ -7,6 +7,7 @@
     {{ project.source_folder }} &middot; imported {{ project.imported_at }} &middot;
     {{ internal_count }} view-to-view dependenc{{ "y" if internal_count == 1 else "ies" }} &middot;
     {{ estate.leaf_sources|length }} leaf source{{ "" if estate.leaf_sources|length == 1 else "s" }}
+    &middot; <a href="/estate">Estate map</a>
     <form class="inline" method="post" action="/import">
       <input type="hidden" name="folder" value="{{ project.source_folder }}">
       <button type="submit" title="Read the folder again; notes are kept">Re-import</button>

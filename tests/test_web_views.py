@@ -329,7 +329,7 @@ def test_hostile_view_id_is_escaped(tmp_path):
 def test_jinja_autoescape_is_on():
     from app.web.routes import templates
     names = ("base.html", "views.html", "view.html", "_node_panel.html", "index.html",
-             "error.html", "_macros.html")
+             "error.html", "_macros.html", "estate.html")
     assert {p.name for p in TEMPLATES_DIR.glob("*.html")} == set(names)
     for name in names:
         assert templates.env.autoescape(name) is True, name

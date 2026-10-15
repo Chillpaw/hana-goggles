@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from app.web.estate_routes import router as estate_router
 from app.web.notes import router as notes_router
 from app.web.routes import register_error_handlers, router
 from app.web.security import add_security_middleware
@@ -36,6 +37,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(router)
+    app.include_router(estate_router)
     app.include_router(notes_router)
 
     return app

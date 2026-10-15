@@ -30,7 +30,9 @@
   {% endif %}
 {% endblock %}
 {% block content %}
-  <p class="muted"><a href="/views">Views</a> &rsaquo;</p>
+  <p class="muted"><a href="/views">Views</a> &rsaquo;
+    <span style="float: right"><a href="/estate">Estate map</a> &middot;
+      <a href="{{ view_mmd_url(view.id) }}" download>Mermaid (.mmd)</a></span></p>
   <h1>{{ view.id }}</h1>
   <dl class="facts">
     <div><dt>Package</dt><dd class="mono">{{ view.package_path or "(root)" }}</dd></div>

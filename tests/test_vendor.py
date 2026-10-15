@@ -33,7 +33,7 @@ def test_templates_contain_no_http_urls_at_all():
 
 def test_first_party_js_contains_no_urls():
     scripts = sorted(APP_JS_DIR.glob("*.js"))
-    assert "viewgraph.js" in [p.name for p in scripts]
+    assert {"viewgraph.js", "estate.js"} <= {p.name for p in scripts}
     for script in scripts:
         text = script.read_text(encoding="utf-8")
         assert not ANY_URL.search(text), script.name
@@ -48,8 +48,9 @@ def test_every_script_in_every_template_is_local():
             assert (WEB_DIR / src.removeprefix("/")).is_file(), (template.name, src)
 
 
-def test_first_party_js_is_served():
-    response = local_client(create_app()).get("/static/app/viewgraph.js")
+@pytest.mark.parametrize("name", ["viewgraph.js", "estate.js"])
+def test_first_party_js_is_served(name):
+    response = local_client(create_app()).get(f"/static/app/{name}")
     assert response.status_code == 200
 
 

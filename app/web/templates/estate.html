@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cycle_callout %}
+{% block title %}Estate map · CalcView Migrator{% endblock %}
+{% block style %}
+    .estate-layout { display: flex; gap: 12px; align-items: stretch; }
+    .estate-main { flex: 1 1 auto; min-width: 0; }
+    #estate { height: 72vh; min-height: 420px; border: 1px solid var(--line); background: #fbfcfd; }
+    #estate-info { flex: 0 0 320px; max-height: 76vh; overflow: auto; border: 1px solid var(--line);
+                   background: var(--panel); padding: 8px 12px; }
+    #estate-info dl { margin: 4px 0; }
+    #estate-info dt { color: var(--muted); }
+    #estate-info dd { margin: 0 0 4px 0; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 6px 0; }
+    .toolbar label { white-space: nowrap; }
+    #legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0; font-size: 12px; }
+    #legend .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 2px;
+                      vertical-align: -2px; margin-right: 4px; border: 1px solid rgba(0,0,0,.25); }
+    #legend .swatch.leaf { border-radius: 6px; }
+    #legend .swatch.cycle { background: #fff; border: 3px dashed var(--bad); }
+    #legend .swatch.ambiguous { background: #fff; border: 2px dashed var(--warn); }
+    #legend .swatch.match { background: #fff; border: 3px solid #e15759; }
+    #png-link[hidden] { display: none; }
+    ol.deploy { columns: 3 220px; padding-left: 28px; }
+{% endblock %}
+{% block head %}
+  <script src="/static/vendor/cytoscape.min.js"></script>
+  <script src="/static/vendor/dagre.min.js"></script>
+  <script src="/static/vendor/cytoscape-dagre.js"></script>
+{% endblock %}
+{% block content %}
+  <h1>Estate map</h1>
+  <div class="muted">
+    {{ estate.views|length }} view{{ "" if estate.views|length == 1 else "s" }} &middot;
+    {{ estate.leaf_sources|length }} leaf source{{ "" if estate.leaf_sources|length == 1 else "s" }} &middot;
+    {{ edge_count }} dependenc{{ "y" if edge_count == 1 else "ies" }}
+    ({{ internal_count }} between views) &middot;
+    Mermaid: <a href="/estate.mmd" download>with leaf sources</a>,
+    <a href="/estate.mmd?leaves=0" download>views only</a>
+  </div>
+
+  {% for members in estate.cycles %}
+    {{ cycle_callout(members, "these views read from each other, so no deploy order works for them:") }}
+  {% endfor %}
+
+  <div class="toolbar">
+    <label>Colour by
+      <select id="colour-by">
+        <option value="parse_status">parse status</option>
+        <option value="view_type">view type</option>
+        <option value="data_category">data category</option>
+        <option value="signoff">sign-off</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="show-leaves" checked> Show leaf sources</label>
+    <label>Search <input type="text" id="search" placeholder="View or source name" autocomplete="off"></label>
+    <span id="search-count" class="muted"></span>
+    <button type="button" id="fit">Fit</button>
+    <button type="button" id="png-export">Export PNG</button>
+    <a id="png-link" download="estate.png" hidden>Download PNG</a>
+  </div>
+
+  <div class="estate-layout">
+    <div class="estate-main">
+      <div id="estate" aria-label="Dependency map of every view"></div>
+      <div id="legend"></div>
+      <p class="muted">Data flows left to right, from sources to the views that read them.
+        Click a view to highlight what it reads from and what reads it; click the background to clear.
+        Double-click a view to open it.</p>
+      <noscript><p class="callout">The map needs JavaScript. The deploy order and the
+        <a href="/views">views list</a> have the same information as text.</p></noscript>
+    </div>
+    <aside id="estate-info"><p class="muted">Click a view to see its details.</p></aside>
+  </div>
+  <script type="application/json" id="estate-data">{{ elements|tojson }}</script>
+
+  <h2>Deploy order</h2>
+  <p class="muted">Producers before the views that read them.</p>
+  <ol class="deploy" id="deploy-order">
+  {% for v in estate.deploy_order %}
+    <li><a href="{{ view_url(v) }}">{{ v }}</a>{% if v in cycle_members %} <span class="badge error">cycle</span>{% endif %}</li>
+  {% else %}
+    <li class="muted">No views.</li>
+  {% endfor %}
+  </ol>
+
+  <h2>Warnings</h2>
+  {% if warnings %}
+    <table id="estate-warnings">
+      <thead><tr><th>Severity</th><th>Code</th><th>View</th><th>Message</th></tr></thead>
+      <tbody>
+      {% for w in warnings %}
+        <tr><td><span class="badge {{ w.severity }}">{{ w.severity }}</span></td>
+            <td class="mono">{{ w.code }}</td>
+            <td>{% if w.view_id %}<a href="{{ view_url(w.view_id) }}">{{ w.view_id }}</a>{% endif %}</td>
+            <td>{{ w.message }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No unresolved, ambiguous or duplicate dependencies.</p>
+  {% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/app/estate.js"></script>{% endblock %}

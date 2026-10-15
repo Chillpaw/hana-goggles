@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import cycle_callout %}
+{% from "_macros.html" import cycle_callout, stale_badge, signoff_badge %}
 {% block title %}Views · CalcView Migrator{% endblock %}
 {% block content %}
   <h1>Views <span class="muted">({{ rows|length }}{% if rows|length != total %} of {{ total }}{% endif %})</span></h1>
@@ -66,12 +66,29 @@
         <td class="num">{{ r.warning_count }}</td>
         <td class="num depends">{{ r.depends }}</td>
         <td class="num usedby">{{ r.usedby }}</td>
+        <td class="signoff">{{ signoff_badge(r.note) }} {{ stale_badge(r.note) }}</td>
       </tr>
     {% else %}
-      <tr><td colspan="10" class="muted">No views match.</td></tr>
+      <tr><td colspan="11" class="muted">No views match.</td></tr>
     {% endfor %}
     </tbody>
   </table>
   <p class="muted">Reads views / Used by: direct dependencies on other views in this project.
-    Coverage: share of a view's steps the parser fully understood.</p>
+    Coverage: share of a view's steps the parser fully understood.
+    Sign-off: set on a view's Notes tab; "Stale" means the view changed since the note was saved.</p>
+
+  {% if removed_view_notes %}
+    <h2>Notes on views that no longer exist</h2>
+    <p class="muted">These views are no longer in the imported folder. Their notes are kept.</p>
+    <table>
+      <thead><tr><th>View</th><th>Sign-off</th><th>Owner</th><th>Purpose</th><th>Notes</th><th>Updated</th></tr></thead>
+      <tbody>
+      {% for n in removed_view_notes %}
+        <tr><td class="mono">{{ n.target_id }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+            <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.purpose_text }}</td>
+            <td style="white-space: pre-wrap">{{ n.notes }}</td><td class="muted">{{ n.updated_at or "" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
 {% endblock %}

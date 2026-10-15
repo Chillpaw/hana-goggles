@@ -177,6 +177,16 @@
     window.addEventListener("resize", function () { cy.resize(); });
   }
 
+  // htmx swaps only 2xx responses. A rejected step-notes form comes back as 400 with the
+  // panel re-rendered (error message plus what was typed), so swap that in too.
+  document.addEventListener("htmx:beforeSwap", function (evt) {
+    var target = evt.detail.target;
+    if (evt.detail.xhr.status === 400 && target && target.id === "node-panel") {
+      evt.detail.shouldSwap = true;
+      evt.detail.isError = false;
+    }
+  });
+
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
   } else {

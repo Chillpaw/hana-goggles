@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% from "_macros.html" import warnings_table, columns_table, type_badge, view_links, cycle_callout %}
+{% from "_macros.html" import warnings_table, columns_table, type_badge, view_links, cycle_callout,
+     stale_badge, signoff_badge, signoff_select %}
 {% block title %}{{ view.id }} · CalcView Migrator{% endblock %}
 {% block style %}
     .graph-layout { display: flex; gap: 12px; align-items: stretch; }
@@ -40,6 +41,8 @@
     <div><dt>Coverage</dt><dd>{{ "%.0f"|format(view.coverage_pct) }}%</dd></div>
     <div><dt>Steps</dt><dd>{{ result.nodes|length }}</dd></div>
     <div><dt>Warnings</dt><dd>{{ result.warnings|length + estate_warnings|length }}</dd></div>
+    <div><dt>Sign-off</dt><dd><a href="{{ view_url(view.id) }}?tab=notes">{{ signoff_badge(note) }}</a>
+      {{ stale_badge(note) }}</dd></div>
   </dl>
   <div class="deps"><span class="label">Reads views</span>
     {% if reads_from %}{{ view_links(reads_from) }}{% else %}<span class="muted">none in this project</span>{% endif %}
@@ -66,11 +69,73 @@
   <nav class="tabs">
     {% for key, label in tabs.items() %}
       <a href="{{ view_url(view.id) }}?tab={{ key }}"{% if key == tab %} class="active"{% endif %}>{{ label }}
-        {%- if key == "warnings" and (result.warnings or estate_warnings) %} ({{ result.warnings|length + estate_warnings|length }}){% endif %}</a>
+        {%- if key == "warnings" and (result.warnings or estate_warnings) %} ({{ result.warnings|length + estate_warnings|length }}){% endif %}
+        {%- if key == "notes" and note and note.stale %} <span class="badge stale">stale</span>{% endif %}</a>
     {% endfor %}
   </nav>
 
-  {% if failed and tab in ("graph", "steps", "columns") %}
+  {% if tab == "notes" %}
+    {% set values = form or {"purpose_text": none, "owner": none, "notes": none, "signoff_status": none} %}
+    {% set f_purpose = values.purpose_text if values.purpose_text is not none else (note.purpose_text if note else "") %}
+    {% set f_owner = values.owner if values.owner is not none else (note.owner if note else "") %}
+    {% set f_notes = values.notes if values.notes is not none else (note.notes if note else "") %}
+    {% set f_status = values.signoff_status if values.signoff_status in signoff_values else (note.signoff_status if note else "draft") %}
+    {% if form_error %}<p class="callout bad" role="alert"><strong>Not saved.</strong> {{ form_error }}</p>{% endif %}
+    {% if note_conflict %}<p class="callout bad">A note on a step uses the same id as this view, so this view's notes cannot be saved here.</p>{% endif %}
+    <p>
+      {% if note %}Last updated {{ note.updated_at }}{% else %}<span class="muted">Not saved yet.</span>{% endif %}
+      {{ stale_badge(note) }}
+      {% if note and note.stale %}<span class="muted">Review the notes against the current view and save to clear this.</span>{% endif %}
+    </p>
+    <form class="notes" method="post" action="{{ notes_url(view.id) }}">
+      <label for="purpose_text">Purpose</label>
+      <textarea id="purpose_text" name="purpose_text" rows="3" maxlength="{{ max_note_chars }}"
+        placeholder="What this view is for, in business terms">{{ f_purpose }}</textarea>
+      <div class="row">
+        <div><label for="owner">Owner</label>
+          <input type="text" id="owner" name="owner" maxlength="{{ max_note_chars }}" value="{{ f_owner }}"></div>
+        <div><label for="signoff_status">Sign-off status</label>
+          {{ signoff_select(f_status, "signoff_status") }}</div>
+      </div>
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" rows="8" maxlength="{{ max_note_chars }}">{{ f_notes }}</textarea>
+      <p><button type="submit">Save notes</button></p>
+    </form>
+
+    <h2>Notes on steps</h2>
+    {% if step_notes %}
+      <table>
+        <thead><tr><th>Step</th><th>Sign-off</th><th>Owner</th><th>Notes</th><th>Updated</th></tr></thead>
+        <tbody>
+        {% for node, n in step_notes %}
+          <tr><td>{{ node.name }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+              <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.notes }}</td>
+              <td class="muted">{{ n.updated_at or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No notes on individual steps. Click a step in the Graph tab to add one.</p>
+    {% endif %}
+
+    {% if orphan_notes %}
+      <h2>Notes on steps that no longer exist</h2>
+      <p class="muted">These steps were removed or renamed in the view file. Their notes are kept
+        so nothing is lost; copy anything still relevant into a current step's notes.</p>
+      <table>
+        <thead><tr><th>Step id</th><th>Sign-off</th><th>Owner</th><th>Purpose</th><th>Notes</th><th>Updated</th></tr></thead>
+        <tbody>
+        {% for n in orphan_notes %}
+          <tr><td class="mono">{{ n.target_id }} {{ stale_badge(n) }}</td><td>{{ signoff_badge(n) }}</td>
+              <td>{{ n.owner }}</td><td style="white-space: pre-wrap">{{ n.purpose_text }}</td>
+              <td style="white-space: pre-wrap">{{ n.notes }}</td>
+              <td class="muted">{{ n.updated_at or "" }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+  {% elif failed and tab in ("graph", "steps", "columns") %}
     <div class="callout bad">
       <strong>This view could not be parsed.</strong> No steps were read from the file, so there
       is nothing to draw or describe. The warnings below say why.

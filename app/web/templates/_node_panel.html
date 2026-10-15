@@ -1,4 +1,4 @@
-{% from "_macros.html" import warnings_table, columns_table, type_badge %}
+{% from "_macros.html" import warnings_table, columns_table, type_badge, stale_badge, signoff_select %}
 <div class="node-panel">
   <h2>{{ node.name }} {{ type_badge(node) }}</h2>
   <p class="headline">{{ description.headline|prose }}</p>
@@ -8,6 +8,24 @@
   {% if resolved_view %}
     <p><a href="{{ view_url(resolved_view) }}">Open {{ resolved_view }}</a></p>
   {% endif %}
+  <h3>Notes on this step {{ stale_badge(note) }}</h3>
+  {% if form_error %}<p class="callout bad" role="alert"><strong>Not saved.</strong> {{ form_error }}</p>{% endif %}
+  {% if note_conflict %}<p class="callout bad">A view uses the same id as this step, so this step's notes cannot be saved.</p>{% endif %}
+  {% if saved %}<p class="badge ok" role="status">Saved</p>{% endif %}
+  {% set f = form or {"owner": none, "notes": none, "signoff_status": none} %}
+  <form class="notes compact" hx-post="{{ node_notes_url(view.id, node.id) }}" hx-target="#node-panel">
+    <div class="row">
+      <div><label for="node-owner">Owner</label>
+        <input type="text" id="node-owner" name="owner" maxlength="{{ max_note_chars }}"
+          value="{{ f.owner if f.owner is not none else (note.owner if note else '') }}"></div>
+      <div><label for="node-status">Sign-off</label>
+        {{ signoff_select(f.signoff_status if f.signoff_status in signoff_values else (note.signoff_status if note else "draft"), "node-status") }}</div>
+    </div>
+    <label for="node-notes">Notes</label>
+    <textarea id="node-notes" name="notes" rows="3" maxlength="{{ max_note_chars }}">{{ f.notes if f.notes is not none else (note.notes if note else "") }}</textarea>
+    <p><button type="submit">Save step notes</button>
+      {% if note and note.updated_at %}<span class="muted">Last updated {{ note.updated_at }}</span>{% endif %}</p>
+  </form>
   <h3>Columns</h3>
   {{ columns_table(node) }}
   <h3>Warnings</h3>

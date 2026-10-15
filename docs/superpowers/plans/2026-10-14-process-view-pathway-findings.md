@@ -42,6 +42,11 @@ Carried forward from the subagent-driven build of plan `2026-10-14-process-view-
 - Ruling (T9): the audit counts UNKNOWN_ELEMENT through an optional collector on the parser's own `_check_children`, so the two cannot drift.
 - Ruling (T9): duplicate-id counts exclude only files whose id fell back to the file stem.
 - Resolved: T6 → T7 deferred items (failed-view message; escaped `(not parsed)` markup).
+- Ruling (T8): a notes POST merges: a field the form does not send keeps its stored value (the node panel sends owner, status and notes only, so a step's purpose survives). A field over 20 000 characters or an unknown status is a 400 that re-renders the form with what was typed; nothing is saved — cost if wrong: none.
+- Ruling (T8): POST /node/notes answers a validation error with 400, unlike GET /node's 200 error fragments; `viewgraph.js` swaps a 400 into `#node-panel` via `htmx:beforeSwap`. An unknown view or step stays a 200 fragment like GET /node — cost if wrong: one line in the route.
+- Ruling (T8): the annotation table is keyed by id alone, so a view id equal to a node id (view `A/B` and step `B` of view `A`) cannot carry both notes; saving the second kind is refused with a visible error rather than overwriting — cost if wrong: a schema change to key on (kind, id).
+- Ruling (T8): a node note belongs to the longest existing view id that prefixes it plus `/`; notes whose step is gone are listed on that view's Notes tab ("Notes on steps that no longer exist"); view notes whose view is gone are listed under the views table — cost if wrong: cosmetic placement.
+- Ruling (T8): the views list "Sign-off" column sorts no note first, then draft, reviewed, approved.
 
 ## Deferred minor findings
 - T9: each file is parsed twice by the audit (parser + structure scan); fine at estate scale.

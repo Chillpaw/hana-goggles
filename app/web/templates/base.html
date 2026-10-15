@@ -53,7 +53,14 @@
               border-radius: 3px 3px 0 0; color: var(--fg); }
     .tabs a.active { border-color: var(--line); background: var(--bg); font-weight: 600;
                      margin-bottom: -1px; }
+    .badge.stale { color: #fff; border-color: var(--warn); background: var(--warn); font-weight: 600; }
+    .badge.signoff-reviewed { color: var(--accent); border-color: #b7c9e8; background: #eef3fb; }
+    .badge.signoff-approved { color: var(--ok); border-color: #b9d8b9; background: #eef7ee; }
     form.inline { display: inline; }
+    textarea, select { font: inherit; padding: 3px 6px; border: 1px solid #b8bfcb; border-radius: 3px; }
+    textarea { width: 100%; resize: vertical; }
+    form.notes label { display: block; font-weight: 600; margin: 8px 0 2px; }
+    form.notes .row { display: flex; gap: 16px; flex-wrap: wrap; }
     input[type=text] { font: inherit; padding: 3px 6px; border: 1px solid #b8bfcb; border-radius: 3px; }
     button { font: inherit; padding: 3px 10px; border: 1px solid #9aa3b2; border-radius: 3px;
              background: var(--panel); cursor: pointer; }

@@ -52,3 +52,19 @@
 {% macro cycle_callout(members, lead) %}
   <p class="callout bad"><strong>Cycle:</strong> {{ lead }} {{ view_links(members, " &harr; ") }}</p>
 {% endmacro %}
+
+{% macro stale_badge(note) -%}
+  {%- if note and note.stale %}<span class="badge stale" title="The view or step changed since this note was saved; review and save it again">Stale: {{ note.stale_reason or "changed" }}</span>{% endif -%}
+{%- endmacro %}
+
+{% macro signoff_badge(note) -%}
+  {%- if note %}<span class="badge signoff-{{ note.signoff_status }}">{{ note.signoff_status }}</span>{% else %}<span class="muted">&mdash;</span>{% endif -%}
+{%- endmacro %}
+
+{% macro signoff_select(selected, id=None) -%}
+  <select name="signoff_status"{% if id %} id="{{ id }}"{% endif %}>
+    {%- for value in signoff_values %}
+    <option value="{{ value }}"{% if value == selected %} selected{% endif %}>{{ value }}</option>
+    {%- endfor %}
+  </select>
+{%- endmacro %}

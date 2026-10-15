@@ -12,17 +12,17 @@ the import form (a download answers 404), stored-data errors become the shared 4
 from __future__ import annotations
 
 import re
-from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 from pydantic import ValidationError
 
 from app.generators.lineage import VIEW_KIND, estate_elements, estate_mermaid, view_mermaid
-from app.ir.models import Annotation, TargetKind
+from app.ir.models import Annotation
 from app.ir.store import Store
 from app.web.deps import get_existing_store
-from app.web.routes import Loaded, OutdatedDataError, _load, templates, view_url
+from app.web.loading import Loaded, OutdatedDataError, load_project
+from app.web.routes import templates, view_mmd_url, view_url
 
 router = APIRouter()
 
@@ -32,21 +32,14 @@ _UNSAFE_FILENAME = re.compile(r"[^A-Za-z0-9._-]+")
 MAX_FILENAME = 100
 
 
-def view_mmd_url(view_id: str) -> str:
-    return "/view.mmd?" + urlencode({"view": view_id}, quote_via=quote)
-
-
-templates.env.globals.update(view_mmd_url=view_mmd_url)
-
-
 @router.get("/estate", response_class=HTMLResponse)
 def estate_page(request: Request, store: Store | None = Depends(get_existing_store)):
-    loaded = _load_project(store)
+    loaded = _loaded(store)
     if loaded is None:
         return RedirectResponse("/", status_code=303)
     assert store is not None
     estate = loaded.estate
-    elements = estate_elements(estate, loaded.summaries, _view_annotations(store, loaded))
+    elements = estate_elements(estate, loaded.summaries, _annotations(store, loaded))
     for element in elements:
         data = element["data"]
         if data.get("kind") == VIEW_KIND and "source" not in data:
@@ -64,7 +57,7 @@ def estate_page(request: Request, store: Store | None = Depends(get_existing_sto
 
 @router.get("/estate.mmd")
 def estate_mmd(leaves: bool = True, store: Store | None = Depends(get_existing_store)):
-    loaded = _load_project(store)
+    loaded = _loaded(store)
     if loaded is None:
         return _no_project()
     name = safe_filename(loaded.project.name, "estate") + ("-estate" if leaves else "-estate-views")
@@ -73,7 +66,7 @@ def estate_mmd(leaves: bool = True, store: Store | None = Depends(get_existing_s
 
 @router.get("/view.mmd")
 def view_mmd(view: str, store: Store | None = Depends(get_existing_store)):
-    loaded = _load_project(store)
+    loaded = _loaded(store)
     if loaded is None:
         return _no_project()
     result = loaded.results.get(view)
@@ -84,20 +77,20 @@ def view_mmd(view: str, store: Store | None = Depends(get_existing_store)):
 
 # ---------------------------------------------------------------- helpers
 
-def _load_project(store: Store | None) -> Loaded | None:
+def _loaded(store: Store | None) -> Loaded | None:
     project = store.get_project() if store is not None else None
     if store is None or project is None:
         return None
-    return _load(store, project)
+    return load_project(store, project)
 
 
-def _view_annotations(store: Store, loaded: Loaded) -> list[Annotation]:
-    """View notes only (sign-off colouring); a step note never counts as a view's."""
+def _annotations(store: Store, loaded: Loaded) -> list[Annotation]:
+    """All annotations; `estate_elements` keeps the view notes (a step note never counts
+    as a view's sign-off)."""
     try:
-        annotations = store.list_annotations()
+        return store.list_annotations()
     except ValidationError as exc:
         raise OutdatedDataError(loaded.project) from exc
-    return [a for a in annotations if a.target_kind == TargetKind.VIEW]
 
 
 def _no_project() -> Response:

@@ -85,8 +85,10 @@ def estate_elements(estate: Estate, summaries: list[ViewSummary],
     signoff, stale, node_count, warning_count, in_cycle} (summary fields are None for a view
     with no stored summary; signoff is None without a view note). Leaf data: {id, label, kind,
     ambiguous, marker} where marker is "" for a table, else visible text such as
-    "not in folder" or "ambiguous". Edge data: {id: "<producer>-><consumer>", source, target,
-    internal, in_cycle, ambiguous, count} with one edge per pair (`count` data sources).
+    "not in folder" or "ambiguous". Edge data: {id: "e<index>", source, target,
+    internal, in_cycle, ambiguous, count} with one edge per pair (`count` data sources); edge
+    ids are `e<index>` in edge order, because "<producer>-><consumer>" can collide when
+    ids contain "->" (views "A->B" + "C" versus "A" + "B->C").
     Order: views by id, leaves by id, edges in dependency order (consumer, data source)."""
     summary_by_id = {s.id: s for s in summaries}
     notes = {a.target_id: a for a in annotations if a.target_kind == TargetKind.VIEW}
@@ -117,9 +119,9 @@ def estate_elements(estate: Estate, summaries: list[ViewSummary],
             "ambiguous": ambiguous,
             "marker": AMBIGUOUS_MARKER if ambiguous else LEAF_MARKERS.get(str(leaf.kind), ""),
         }})
-    for (producer, consumer), (internal, count) in _edge_pairs(estate).items():
+    for index, ((producer, consumer), (internal, count)) in enumerate(_edge_pairs(estate).items()):
         elements.append({"data": {
-            "id": f"{producer}->{consumer}", "source": producer, "target": consumer,
+            "id": f"e{index}", "source": producer, "target": consumer,
             "internal": internal, "count": count,
             "in_cycle": _same_cycle(cycle_of, producer, consumer),
             "ambiguous": (producer, consumer) in ambiguous_pairs,

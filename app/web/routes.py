@@ -1,7 +1,6 @@
 """Page routes: import form, views list, view page (tabs) and the node panel fragment.
 
-Every page reads the stored IR and rebuilds the estate per request
-(`resolve_dependencies(store.load_all_results())`, milliseconds for a few hundred views).
+Every page reads the stored IR and rebuilds the estate per request (`app.web.loading`).
 GET pages use `get_existing_store`, so browsing never creates a database file.
 
 URLs: a view page is `/views/{view_id}` with the id percent-encoded (ids may contain `/`,
@@ -14,7 +13,6 @@ from __future__ import annotations
 import re
 import sqlite3
 from collections import Counter
-from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlencode
 
@@ -23,10 +21,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
-from pydantic import ValidationError
 
-from app.enrich.deps import _sort_key as estate_preference
-from app.enrich.deps import resolve_dependencies
 from app.generators.describe import NodeDescription, describe_node, describe_view, render_expression
 from app.generators.lineage import MISSING_TYPE, view_elements
 from app.ingest.importer import VIEW_REMOVED, import_folder
@@ -36,13 +31,12 @@ from app.ir.models import (
     Estate,
     Node,
     ParseResult,
-    Project,
     SignoffStatus,
     TargetKind,
-    ViewSummary,
 )
 from app.ir.store import Store, StoreVersionError
 from app.web.deps import get_existing_store
+from app.web.loading import Loaded, OutdatedDataError, load_project
 
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 TABS = {"graph": "Graph", "steps": "Steps", "columns": "Columns", "warnings": "Warnings",
@@ -57,6 +51,10 @@ router = APIRouter()
 
 def view_url(view_id: str) -> str:
     return "/views/" + quote(view_id, safe="")
+
+
+def view_mmd_url(view_id: str) -> str:
+    return "/view.mmd?" + urlencode({"view": view_id}, quote_via=quote)
 
 
 def node_url(view_id: str, node_id: str) -> str:
@@ -94,44 +92,13 @@ def column_type(column) -> str:
 
 templates = Jinja2Templates(directory=TEMPLATES_DIR)  # select_autoescape(): on for .html
 templates.env.filters["prose"] = prose
-templates.env.globals.update(view_url=view_url, node_url=node_url, notes_url=notes_url,
-                             node_notes_url=node_notes_url, column_type=column_type,
+templates.env.globals.update(view_url=view_url, view_mmd_url=view_mmd_url, node_url=node_url,
+                             notes_url=notes_url, node_notes_url=node_notes_url, column_type=column_type,
                              render_expression=render_expression, tabs=TABS,
                              signoff_values=SIGNOFF_VALUES, max_note_chars=MAX_NOTE_CHARS)
 
 
-# ---------------------------------------------------------------- loading and errors
-
-class OutdatedDataError(Exception):
-    """A stored row does not validate against today's IR models."""
-
-    def __init__(self, project: Project | None):
-        super().__init__("stored data is from an older version")
-        self.project = project
-
-
-@dataclass
-class Loaded:
-    project: Project
-    summaries: list[ViewSummary]
-    results: dict[str, ParseResult]
-    estate: Estate
-
-
-def _load(store: Store, project: Project) -> Loaded:
-    try:
-        summaries = store.list_views()
-        results = store.load_all_results()
-    except ValidationError as exc:
-        raise OutdatedDataError(project) from exc
-    estate = resolve_dependencies(results)  # sets resolved_view_id on these copies
-    # One result per id, the copy the estate uses (the store's primary key makes repeats
-    # impossible today; this keeps page and estate agreeing if that ever changes).
-    by_id: dict[str, ParseResult] = {}
-    for result in sorted(results, key=estate_preference):
-        by_id.setdefault(result.view.id, result)
-    return Loaded(project, summaries, by_id, estate)
-
+# ---------------------------------------------------------------- errors
 
 def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(OutdatedDataError, _outdated_data)
@@ -225,7 +192,7 @@ def views(request: Request, sort: str = "name", q: str = "",
     project = store.get_project() if store is not None else None
     if store is None or project is None:
         return RedirectResponse("/", status_code=303)
-    loaded = _load(store, project)
+    loaded = load_project(store, project)
     producers, consumers = _direct_links(loaded.estate)
     annotations = store.list_annotations()
     view_notes = {a.target_id: a for a in annotations if a.target_kind == TargetKind.VIEW}
@@ -292,7 +259,7 @@ def view_context(store: Store | None, view_id: str, tab: str) -> dict | str:
     project = store.get_project() if store is not None else None
     if store is None or project is None:
         return f"No project has been imported, so there is no view {view_id}."
-    loaded = _load(store, project)
+    loaded = load_project(store, project)
     result = loaded.results.get(view_id)
     if result is None:
         return f"There is no view {view_id} in this project."
@@ -389,7 +356,7 @@ def node_context(store: Store | None, view: str, node: str) -> dict | str:
     project = store.get_project() if store is not None else None
     if store is None or project is None:
         return "No project has been imported."
-    loaded = _load(store, project)
+    loaded = load_project(store, project)
     result = loaded.results.get(view)
     found: Node | None = None
     for candidate in result.nodes if result else []:

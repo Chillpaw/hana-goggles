@@ -367,3 +367,31 @@ def test_nav_and_pages_link_to_estate(client):
     for url in ("/views", f"/views/{VIEW}", "/estate"):
         html = client.get(url).text
         assert 'href="/estate"' in html, url
+
+
+def test_edge_ids_are_unique_when_view_ids_contain_arrows():
+    # "A->B" + "->" + "C" and "A" + "->" + "B->C" would both read "A->B->C".
+    estate = Estate(
+        views=["A", "A->B", "B->C", "C"],
+        dependencies=[ViewDependency(consumer="B->C", producer="A", data_source_id="x", internal=True),
+                      ViewDependency(consumer="C", producer="A->B", data_source_id="y", internal=True)])
+    _, edges = _split(estate_elements(estate, [], []))
+    assert [e["id"] for e in edges] == ["e0", "e1"]
+    assert [(e["source"], e["target"]) for e in edges] == [("A", "B->C"), ("A->B", "C")]
+    nodes, _ = _split(estate_elements(estate, [], []))
+    ids = [n["id"] for n in nodes] + [e["id"] for e in edges]
+    assert len(ids) == len(set(ids))
+
+
+@pytest.mark.parametrize("request_args", [
+    ("get", "/health", {}),
+    ("get", "/estate.mmd", {}),
+    ("get", "/static/app/estate.js", {}),
+    ("get", "/views", {"headers": {"host": "evil.example"}}),       # host refusal (400)
+    ("post", "/import", {"data": {"folder": "x"},
+                         "headers": {"sec-fetch-site": "cross-site"}}),  # origin refusal (403)
+])
+def test_every_response_is_nosniff(client, request_args):
+    method, url, kwargs = request_args
+    response = getattr(client, method)(url, **kwargs)
+    assert response.headers["x-content-type-options"] == "nosniff", (url, response.status_code)

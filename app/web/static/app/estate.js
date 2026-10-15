@@ -2,7 +2,7 @@
    Cytoscape + dagre, data flowing left to right (sources on the left).
    Reads its elements from <script type="application/json" id="estate-data">.
    Loads nothing from the network: the libraries are vendored, links point at this server,
-   and the PNG export is made in the browser. Conventions follow viewgraph.js. */
+   and the PNG export is made in the browser (a blob: URL). Conventions follow viewgraph.js. */
 (function () {
   "use strict";
 
@@ -292,6 +292,7 @@
         var shown = shownElements();
         shown.layout(layoutOptions()).run();
         cy.fit(shown, 20);
+        runSearch();
       });
     }
 
@@ -326,26 +327,31 @@
     });
 
     var search = document.getElementById("search");
-    var count = document.getElementById("search-count");
-    if (search) {
-      search.addEventListener("input", function () {
-        var needle = search.value.trim().toLowerCase();
-        cy.nodes().removeClass("match");
-        if (!needle) {
-          if (count) { count.textContent = ""; }
-          return;
-        }
-        var hits = cy.nodes().filter(function (n) {
-          return String(n.data("label")).toLowerCase().indexOf(needle) >= 0 ||
-                 String(n.id()).toLowerCase().indexOf(needle) >= 0;
-        });
-        hits.addClass("match");
-        if (count) { count.textContent = hits.length + (hits.length === 1 ? " match" : " matches"); }
+    var countEl = document.getElementById("search-count");
+
+    // Matches only among shown elements, so hidden leaf sources neither light up nor count.
+    function runSearch() {
+      if (!search) { return; }
+      var needle = search.value.trim().toLowerCase();
+      cy.nodes().removeClass("match");
+      if (!needle) {
+        if (countEl) { countEl.textContent = ""; }
+        return;
+      }
+      var hits = shownElements().nodes().filter(function (n) {
+        return String(n.data("label")).toLowerCase().indexOf(needle) >= 0 ||
+               String(n.id()).toLowerCase().indexOf(needle) >= 0;
       });
+      hits.addClass("match");
+      if (countEl) { countEl.textContent = hits.length + (hits.length === 1 ? " match" : " matches"); }
+    }
+
+    if (search) {
+      search.addEventListener("input", runSearch);
       search.addEventListener("keydown", function (evt) {
         if (evt.key === "Enter") {
           evt.preventDefault();
-          var hits = cy.nodes(".match").intersection(shownElements());
+          var hits = cy.nodes(".match");
           if (hits.length) { cy.animate({ fit: { eles: hits, padding: 60 } }, { duration: 300 }); }
         }
       });
@@ -356,13 +362,16 @@
 
     var exportButton = document.getElementById("png-export");
     var pngLink = document.getElementById("png-link");
+    var pngUrl = null;
     if (exportButton && pngLink) {
       exportButton.addEventListener("click", function () {
         // scale 2 for a sharp image, reduced if the canvas would pass browser size limits
         var box = shownElements().boundingBox();
         var scale = Math.min(2, 16000 / Math.max(box.w, 1), 16000 / Math.max(box.h, 1));
-        var url = cy.png({ full: true, scale: scale, bg: "#ffffff" });
-        pngLink.href = url;
+        var blob = cy.png({ output: "blob", full: true, scale: scale, bg: "#ffffff" });
+        if (pngUrl) { URL.revokeObjectURL(pngUrl); }  // free the previous export
+        pngUrl = URL.createObjectURL(blob);
+        pngLink.href = pngUrl;
         pngLink.hidden = false;
         pngLink.click();
       });

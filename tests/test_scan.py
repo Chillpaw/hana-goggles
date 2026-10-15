@@ -162,3 +162,42 @@ def test_non_utf8_file_name_skipped_with_warning(tmp_path):
         ("SCAN_BAD_FILENAME", Severity.WARNING,
          "skipped file with a non-UTF-8 name: BAD_\\udcff.calculationview"),
     ]
+
+
+class _FakeStat:
+    def __init__(self, **attrs):
+        self.__dict__.update(attrs)
+
+
+def test_reparse_point_helper_reads_windows_attributes():
+    import stat
+
+    attrs = stat.FILE_ATTRIBUTE_REPARSE_POINT | stat.FILE_ATTRIBUTE_DIRECTORY
+    junction = _FakeStat(st_file_attributes=attrs, st_reparse_tag=scan.IO_REPARSE_TAG_MOUNT_POINT)
+    link = _FakeStat(st_file_attributes=attrs, st_reparse_tag=scan.IO_REPARSE_TAG_SYMLINK)
+    no_tag = _FakeStat(st_file_attributes=attrs)
+    cloud = _FakeStat(st_file_attributes=attrs, st_reparse_tag=0x9000001A)  # OneDrive placeholder
+    plain_dir = _FakeStat(st_file_attributes=stat.FILE_ATTRIBUTE_DIRECTORY, st_reparse_tag=0)
+    for info in (junction, link, no_tag):
+        assert scan._is_reparse_point("j", lstat=lambda p, info=info: info) is True
+    assert scan._is_reparse_point("c", lstat=lambda p: cloud) is False
+    assert scan._is_reparse_point("d", lstat=lambda p: plain_dir) is False
+    # POSIX stat results have no st_file_attributes: never a reparse point
+    assert scan._is_reparse_point("d", lstat=lambda p: _FakeStat()) is False
+
+    def gone(path):
+        raise FileNotFoundError(path)
+
+    assert scan._is_reparse_point("x", lstat=gone) is False
+
+
+def test_reparse_point_directories_are_pruned(tmp_path, monkeypatch):
+    _put(tmp_path, "pkg/A.calculationview")
+    _put(tmp_path, "junction/B.calculationview")
+    monkeypatch.setattr(scan, "_is_reparse_point", lambda path: os.path.basename(path) == "junction")
+    assert _rels(tmp_path) == ["pkg/A.calculationview"]
+
+
+def test_real_directories_are_not_reparse_points(tmp_path):
+    (tmp_path / "d").mkdir()
+    assert scan._is_reparse_point(tmp_path / "d") is False

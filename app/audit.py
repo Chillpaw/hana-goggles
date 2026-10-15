@@ -6,7 +6,7 @@ per-file facts into a report dict (pure), and `format_text` / `format_json` prin
 Never printed: file names, paths, ids, names, column names, descriptions, literals,
 expressions, warning messages, parameter defaults. Only counts, fixed codes, XML tag and
 attribute names, SAP/W3C namespace URIs, `xsi:type` values, allow-listed enum values,
-resourceUri shapes and column-engine function names (known catalogue names apart from
+resourceUri and root-id shapes and column-engine function names (known catalogue names apart from
 unrecognised ones, which the reader reviews before sharing).
 """
 from __future__ import annotations
@@ -21,7 +21,7 @@ from app.ir.models import IRWarning, ViewType
 from app.parsers.audit_scan import OTHER, FileStructure, scan_structure
 from app.parsers.dispatch import parse_bytes
 
-AUDIT_FORMAT_VERSION = 1
+AUDIT_FORMAT_VERSION = 2  # 2: root_id_shapes
 FORMATS = ("text", "json")
 COVERAGE_BUCKETS = ("0", "1-49", "50-89", "90-99", "100")
 
@@ -146,6 +146,8 @@ def aggregate(facts: list[FileFacts], scan_warning_codes: list[str] | None = Non
         "warning_codes": _plain(Counter(code for f in facts for code in f.warning_codes)),
         "folder_scan_warning_codes": _plain(Counter(scan_warning_codes or [])),
         "duplicate_view_ids": _duplicates(facts),
+        "root_id_shapes": _plain(Counter(s.root_id_shape for s in structures
+                                         if s.root_id_shape is not None)),
         "scripted_views": sum(1 for f in facts if f.view_type == ViewType.SCRIPTED.value),
         "namespaces": _plain(total("namespaces")),
         "elements": _plain(total("elements")),
@@ -232,6 +234,7 @@ def format_text(report: dict) -> str:
               f"ids shared by more than one file: {dup['ids_shared']}",
               f"files involved: {dup['files_involved']}",
               f"ids shared across packages: {dup['ids_across_packages']}"]
+    lines += _section("Root id shapes", report["root_id_shapes"])
     lines += _section("Namespace URIs (files using each)", report["namespaces"])
     lines += _section("Elements", report["elements"])
     lines += _nested_section("Element children (parent > child)", report["element_children"], " > ")

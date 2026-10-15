@@ -34,3 +34,19 @@ def test_audit_missing_folder(capsys, tmp_path):
 def test_audit_rejects_unknown_format(capsys):
     with pytest.raises(SystemExit):
         cli.main(["audit", str(FIXTURES), "--format", "xml"])
+
+
+def test_audit_output_file_is_utf8(capsys, tmp_path):
+    target = tmp_path / "audit.json"
+    assert cli.main(["audit", str(FIXTURES), "--format", "json", "--output", str(target)]) == 0
+    out, err = capsys.readouterr()
+    assert out == "" and str(target) in err
+    data = target.read_bytes()
+    assert not data.startswith((b"\xff\xfe", b"\xfe\xff", b"\xef\xbb\xbf")) and b"\r\n" not in data
+    assert data.decode("utf-8") == run_audit(FIXTURES, "json")
+
+
+def test_audit_output_file_unwritable(capsys, tmp_path):
+    assert cli.main(["audit", str(FIXTURES), "--output", str(tmp_path / "no" / "a.txt")]) == 2
+    out, err = capsys.readouterr()
+    assert out == "" and "cannot write" in err

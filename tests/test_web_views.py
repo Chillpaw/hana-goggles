@@ -492,3 +492,34 @@ def test_cross_site_post_leaves_existing_db_unchanged(db, tmp_path):
     response = client.post("/import", data={"folder": str(other)},
                            headers={"sec-fetch-site": "same-site"})
     assert response.status_code == 403 and _view_count(db) == 2
+
+
+# ---------------------------------------------------------------- last import report
+
+def test_web_import_shows_duplicate_view_id_on_views(tmp_path, folder):
+    shutil.copy(folder / f"{VIEW}.calculationview", folder / f"COPY_{VIEW}.calculationview")
+    client = local_client(create_app(tmp_path / "new.db"))
+    response = client.post("/import", data={"folder": str(folder)}, follow_redirects=False)
+    assert response.status_code == 303
+    html = client.get("/views").text
+    section = html.split('id="last-import"', 1)[1].split("</section>", 1)[0]
+    assert "DUPLICATE_VIEW_ID" in section and f"COPY_{VIEW}.calculationview" in section
+    assert "Added 2" in section
+    # warnings sit outside the collapsible counts, so they are always visible
+    details = section.split("<details", 1)[1].split("</details>", 1)[0]
+    assert "DUPLICATE_VIEW_ID" not in details
+
+
+def test_last_import_without_warnings_shows_counts_only(client):
+    html = client.get("/views").text
+    section = html.split('id="last-import"', 1)[1].split("</section>", 1)[0]
+    assert "Added 2" in section and "<table" not in section
+
+
+def test_unreadable_last_import_report_is_visible(client, db):
+    conn = sqlite3.connect(db)
+    conn.execute("""UPDATE project SET last_import_json = '{"added": "lots"}'""")
+    conn.commit()
+    conn.close()
+    html = client.get("/views").text
+    assert "last import report could not be read" in html

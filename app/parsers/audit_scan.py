@@ -2,7 +2,7 @@
 
 Everything collected here is structure: element and attribute local names, SAP and W3C
 namespace URIs (any other URI is `<other>`), `xsi:type` values, values of a fixed allow-list of schema-enum attributes, the
-*shape* of resourceUri values, column-engine function names and counts. Names, ids,
+*shape* of resourceUri values and of the root id, column-engine function names and counts. Names, ids,
 descriptions, literals, expressions and parameter defaults are never collected.
 
 UNKNOWN_ELEMENT pairs are not collected here: the audit gets them from the parser itself
@@ -71,6 +71,7 @@ class FileStructure:
     scan_error: bool = False           # the walk itself failed (a bug, never an input problem)
     root_tag: str | None = None        # local name of the root element
     root_has_id: bool = False          # root carries a non-empty id (else the parser uses the stem)
+    root_id_shape: str | None = None   # root_id_shape() of the root id; None if not well-formed
     namespaces: Counter = field(default_factory=Counter)        # URI or <other> -> 1 per file
     elements: Counter = field(default_factory=Counter)          # local tag -> count
     children: Counter = field(default_factory=Counter)          # (parent, child) -> count
@@ -95,10 +96,27 @@ def scan_structure(data: bytes) -> FileStructure:
     try:
         result.root_tag = x.local(root)
         result.root_has_id = bool(root.get("id"))
+        result.root_id_shape = root_id_shape(root.get("id"))
         _walk(root, result)
     except Exception:  # never raise on an input file; the report counts this
         return FileStructure(well_formed=True, scan_error=True)
     return result
+
+
+_PLAIN_ID_RE = re.compile(r"^[A-Za-z0-9_]+$")
+_NAMESPACED_ID_RE = re.compile(r"^[^:/\s]+::[^:/\s]+$")
+
+
+def root_id_shape(value: str | None) -> str:
+    """The shape of a root id, never its text: `plain` (letters, digits, underscores),
+    `<namespace>::<name>` (one `::`, no `/` or spaces), `<other>` or `<missing>`."""
+    if not value:
+        return "<missing>"
+    if _PLAIN_ID_RE.match(value):
+        return "plain"
+    if _NAMESPACED_ID_RE.match(value):
+        return "<namespace>::<name>"
+    return OTHER
 
 
 def _elements(root: etree._Element):

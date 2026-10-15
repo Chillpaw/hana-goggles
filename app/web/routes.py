@@ -21,10 +21,11 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from markupsafe import Markup, escape
+from pydantic import ValidationError
 
 from app.generators.describe import NodeDescription, describe_node, describe_view, render_expression
 from app.generators.lineage import MISSING_TYPE, view_elements
-from app.ingest.importer import VIEW_REMOVED, import_folder
+from app.ingest.importer import VIEW_REMOVED, ImportReport, import_folder, last_import
 from app.ir.graph import downstream, upstream
 from app.ir.models import (
     Annotation,
@@ -218,8 +219,11 @@ def views(request: Request, sort: str = "name", q: str = "",
     rows.sort(key=SORTS[key], reverse=descending)
 
     estate = loaded.estate
+    report, report_unreadable = _last_import(store)
     return templates.TemplateResponse(request, "views.html", {
-        "project": project, "rows": rows, "sort_key": key, "descending": descending, "q": q,
+        "project": project, "rows": rows,
+        "last_import": report, "last_import_unreadable": report_unreadable,
+        "stored_ids": set(loaded.results), "sort_key": key, "descending": descending, "q": q,
         "total": len(loaded.summaries), "estate": estate,
         "removed_notes": removed_notes,
         "internal_count": sum(1 for d in estate.dependencies if d.internal),
@@ -229,6 +233,14 @@ def views(request: Request, sort: str = "name", q: str = "",
                          ("depends", "Reads views"), ("usedby", "Used by"),
                          ("signoff", "Sign-off")],
     })
+
+
+def _last_import(store: Store) -> tuple[ImportReport | None, bool]:
+    """(the last import's report, whether a stored report failed to validate)."""
+    try:
+        return last_import(store), False
+    except ValidationError:
+        return None, True
 
 
 def _direct_links(estate: Estate) -> tuple[dict[str, list[str]], dict[str, list[str]]]:

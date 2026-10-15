@@ -32,7 +32,7 @@ def test_creates_schema_and_reopens(tmp_path):
 
     conn = sqlite3.connect(db)
     try:
-        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 2
+        assert conn.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 3
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     finally:
         conn.close()
@@ -62,6 +62,35 @@ def test_version_1_db_refused(tmp_path):
     conn.close()
     with pytest.raises(StoreVersionError, match="version 1"):
         Store(db)
+
+
+def test_version_2_db_refused(tmp_path):
+    """Version 2 keyed node rows by node id alone; no migration (no real data existed)."""
+    db = tmp_path / "p.db"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE node (id TEXT PRIMARY KEY)")
+    conn.execute("PRAGMA user_version = 2")
+    conn.close()
+    with pytest.raises(StoreVersionError, match="version 2"):
+        Store(db)
+
+
+def test_node_rows_are_keyed_per_view(tmp_path):
+    with Store(tmp_path / "p.db") as store:
+        rows = store.conn.execute("PRAGMA table_info(node)").fetchall()
+    assert sorted((r["pk"], r["name"]) for r in rows if r["pk"]) == [(1, "view_id"), (2, "id")]
+
+
+def test_last_import_round_trip(tmp_path):
+    db = tmp_path / "p.db"
+    with Store(db) as store:
+        assert store.get_last_import() is None
+        store.set_project("P", "/f")
+        assert store.get_last_import() is None
+        store.set_last_import('{"added": 1}')
+        store.set_project("P2", "/f")  # a later project update keeps the report
+    with Store(db) as store:
+        assert store.get_last_import() == '{"added": 1}'
 
 
 def test_view_and_node_annotations_with_one_id_are_separate(tmp_path):

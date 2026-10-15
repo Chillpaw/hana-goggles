@@ -14,6 +14,39 @@
     </form>
   </div>
 
+  <section id="last-import">
+  {% if last_import %}
+    {% set r = last_import %}
+    <details class="callout{{ ' bad' if r.warnings }}">
+      <summary>Last import: Added {{ r.added }}, changed {{ r.changed }}, removed {{ r.removed }},
+        {{ r.warnings|length }} warning{{ "" if r.warnings|length == 1 else "s" }}</summary>
+      <ul>
+        <li>Added {{ r.added }}</li><li>Changed {{ r.changed }}</li>
+        <li>Unchanged {{ r.unchanged }}</li><li>Reparsed {{ r.reparsed }}</li>
+        <li>Removed {{ r.removed }}</li><li>Failed to parse {{ r.failed }}</li>
+        <li>Not stored {{ r.not_stored }}</li><li>Notes newly marked stale {{ r.stale_annotations }}</li>
+      </ul>
+    </details>
+    {% if r.warnings %}
+      <table class="import-warnings">
+        <thead><tr><th>Severity</th><th>Code</th><th>View</th><th>Message</th></tr></thead>
+        <tbody>
+        {% for w in r.warnings %}
+          <tr><td><span class="badge {{ w.severity }}">{{ w.severity }}</span></td>
+              <td class="mono">{{ w.code }}</td>
+              <td>{% if w.view_id in stored_ids %}<a href="{{ view_url(w.view_id) }}">{{ w.view_id }}</a>
+                  {%- elif w.view_id %}{{ w.view_id }}{% endif %}</td>
+              <td>{{ w.message }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  {% elif last_import_unreadable %}
+    <p class="callout bad">The last import report could not be read (it was written by an older
+      version). Re-import to refresh it.</p>
+  {% endif %}
+  </section>
+
   {% for members in estate.cycles %}
     {{ cycle_callout(members, "these views read from each other, so no deploy order works for them:") }}
   {% endfor %}

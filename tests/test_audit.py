@@ -543,3 +543,43 @@ def test_file_facts_id_from_stem(tmp_path):
     got = {name: file_facts(tmp_path / name, tmp_path).id_from_stem for name in cases}
     assert got == {"A.calculationview": False, "B.calculationview": True,
                    "C.calculationview": True, "D.calculationview": True}
+
+
+# --- final-review fix round: root id shapes ----------------------------------------------
+
+@pytest.mark.parametrize("value, shape", [
+    ("CV_SALES_01", "plain"),
+    ("pkg.sub::CV_SALES", "<namespace>::<name>"),
+    ("a::b::c", "<other>"),
+    ("::CV", "<other>"),
+    ("pkg/CV", "<other>"),
+    ("CV SALES", "<other>"),
+    ("CV-1", "<other>"),
+    (None, "<missing>"),
+    ("", "<missing>"),
+])
+def test_root_id_shape(value, shape):
+    assert audit_scan.root_id_shape(value) == shape
+
+
+def test_root_id_shapes_are_counted_without_values():
+    files = [FileFacts(suffix=".calculationview", parse_status="ok", view_type="graphical",
+                       coverage_pct=100.0, structure=scan_structure(data))
+             for data in (scenario("", "").replace(b'id="V"', b'id="SECRET_A"'),
+                          scenario("").replace(b'id="V"', b'id="secret.pkg::SECRET_B"'),
+                          scenario("").replace(b'id="V"', b'id="secret/SECRET_C"'),
+                          scenario("").replace(b'id="V" ', b""),
+                          scenario("").replace(b'id="V"', b'id="SECRET_D"'))]
+    files.append(FileFacts(suffix=".calculationview", parse_status="failed", view_type="unknown",
+                           coverage_pct=0.0, structure=scan_structure(b"not xml")))
+    report = aggregate(files)
+    assert report["root_id_shapes"] == {"<missing>": 1, "<namespace>::<name>": 1, "<other>": 1,
+                                        "plain": 2}
+    for text in (format_text(report), format_json(report)):
+        assert "secret" not in text.lower()
+    assert "== Root id shapes ==" in format_text(report)
+    assert "plain: 2" in format_text(report)
+
+
+def test_leak_fixture_root_id_shape(fixture_bytes):
+    assert scan_structure(fixture_bytes(LEAK)).root_id_shape == "plain"

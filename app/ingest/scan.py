@@ -6,6 +6,8 @@ UTF-8) are never dropped silently: they are appended to the caller's `warnings` 
 from __future__ import annotations
 
 import os
+import stat
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -49,9 +51,11 @@ def _walk(root: Path, warnings: list[IRWarning]) -> list[Path]:
                                   message=f"cannot read folder {where}: {exc.strerror}"))
 
     # followlinks=False stops os.walk descending into symlinked directories (avoids loops);
-    # pruning dirnames in place skips hidden directories such as .git.
+    # pruning dirnames in place skips hidden directories such as .git, and Windows
+    # junctions, which os.walk on Python 3.11 does not treat as links.
     for dirpath, dirnames, filenames in os.walk(root, onerror=on_error, followlinks=False):
-        dirnames[:] = [d for d in dirnames if not d.startswith(".")]
+        dirnames[:] = [d for d in dirnames
+                       if not d.startswith(".") and not _is_reparse_point(os.path.join(dirpath, d))]
         for name in filenames:
             # Hidden files include macOS resource forks such as ._X.calculationview.
             if name.startswith(".") or not name.lower().endswith(VIEW_SUFFIXES):
@@ -68,6 +72,29 @@ def _walk(root: Path, warnings: list[IRWarning]) -> list[Path]:
             found.append((rel, path))
     found.sort(key=lambda item: item[0])
     return [path for _, path in found]
+
+
+# Reparse tags that make a directory point elsewhere (and so can loop). Other reparse
+# points, such as OneDrive cloud placeholders, are ordinary folders and are walked.
+# The stat module defines the tag constants on Windows only; the values are fixed by Windows.
+IO_REPARSE_TAG_MOUNT_POINT = getattr(stat, "IO_REPARSE_TAG_MOUNT_POINT", 0xA0000003)  # junction
+IO_REPARSE_TAG_SYMLINK = getattr(stat, "IO_REPARSE_TAG_SYMLINK", 0xA000000C)
+_LINK_TAGS = frozenset({IO_REPARSE_TAG_MOUNT_POINT, IO_REPARSE_TAG_SYMLINK})
+
+
+def _is_reparse_point(path: str | os.PathLike[str],
+                      lstat: Callable[[str | os.PathLike[str]], object] = os.lstat) -> bool:
+    """True for a Windows directory junction or symlink (a link-type reparse point).
+    Only Windows stat results carry st_file_attributes, so elsewhere this is always False.
+    A reparse point without a readable tag counts as a link (the safe side: no loops)."""
+    try:
+        info = lstat(path)
+    except OSError:
+        return False
+    if not getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT:
+        return False
+    tag = getattr(info, "st_reparse_tag", None)
+    return tag is None or tag in _LINK_TAGS
 
 
 def _check_root(root: Path) -> Path:

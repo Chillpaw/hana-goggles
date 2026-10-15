@@ -253,3 +253,79 @@ def test_failure_rolls_back_whole_import(store, folder, monkeypatch):
     assert sorted(store.view_hashes()) == [VIEW, PRODUCER]
     assert not store.get_annotation(VIEW, TargetKind.VIEW).stale
     assert "2024" not in _filter_text(store, "Projection_1")
+
+
+# ---------------------------------------------------------------- final-review fix round
+
+def test_report_is_persisted_without_the_estate(store, folder):
+    from app.ingest.importer import last_import
+
+    assert last_import(store) is None
+    shutil.copy(folder / MAIN_FILE, folder / f"COPY_{MAIN_FILE}")
+    report = import_folder(store, folder)
+    stored = last_import(store)
+    assert stored.added == 2 and stored.estate.dependencies == []
+    assert [w.code for w in stored.warnings] == ["DUPLICATE_VIEW_ID"]
+    assert stored.warnings == report.warnings
+    assert "estate" not in store.get_last_import()
+
+
+def test_integrity_error_marks_one_view_and_continues(store, folder, monkeypatch):
+    import sqlite3
+
+    import_folder(store, folder)
+    _annotate(store, VIEW, TargetKind.VIEW)
+    _edit(folder / MAIN_FILE, FILTER, "<filter>(&quot;COL_3&quot; = '2024')</filter>")
+    _edit(folder / f"{PRODUCER}.calculationview", "'$$IP_YEAR$$'", "'2025'")
+    real_upsert = store.upsert_view
+
+    def flaky(item):
+        real_upsert(item)  # half-written, then fails: the savepoint must undo it
+        if item.result.view.id == VIEW:
+            raise sqlite3.IntegrityError("UNIQUE constraint failed: node.id")
+
+    monkeypatch.setattr(store, "upsert_view", flaky)
+    report = import_folder(store, folder)
+    assert (report.changed, report.not_stored, report.removed) == (1, 1, 0)
+    [warning] = [w for w in report.warnings if w.code == "VIEW_NOT_STORED"]
+    assert warning.view_id == VIEW and warning.severity is Severity.ERROR
+    assert "UNIQUE constraint failed" in warning.message
+    # the previous version of the view, and its note, are untouched
+    assert "2024" not in _filter_text(store, "Projection_1")
+    assert not store.get_annotation(VIEW, TargetKind.VIEW).stale
+    assert sorted(store.view_hashes()) == [VIEW, PRODUCER]
+
+
+def _scan_with_unreadable_dir(monkeypatch, *, drop=()):
+    import app.ingest.importer as importer
+    from app.ir.models import IRWarning
+
+    real_scan = importer.scan_folder
+
+    def scan(root, warnings=None):
+        warnings.append(IRWarning(code="SCAN_DIR_UNREADABLE", severity=Severity.ERROR,
+                                  message="cannot read folder pkg: Permission denied"))
+        return [s for s in real_scan(root, warnings) if s.result.view.id not in drop]
+
+    monkeypatch.setattr(importer, "scan_folder", scan)
+
+
+def test_scan_error_skips_removals(store, folder, monkeypatch):
+    import_folder(store, folder)
+    _annotate(store, PRODUCER, TargetKind.VIEW)
+    _scan_with_unreadable_dir(monkeypatch, drop={PRODUCER})
+    report = import_folder(store, folder)
+    assert report.removed == 0 and report.stale_annotations == 0
+    assert sorted(store.view_hashes()) == [VIEW, PRODUCER]
+    assert not store.get_annotation(PRODUCER, TargetKind.VIEW).stale
+    [skipped] = [w for w in report.warnings if w.code == "REMOVALS_SKIPPED"]
+    assert skipped.severity is Severity.WARNING
+    assert "1 stored view" in skipped.message
+    assert [w.code for w in report.warnings] == ["SCAN_DIR_UNREADABLE", "REMOVALS_SKIPPED"]
+
+
+def test_scan_error_with_nothing_to_remove_adds_no_skip_warning(store, folder, monkeypatch):
+    import_folder(store, folder)
+    _scan_with_unreadable_dir(monkeypatch)
+    report = import_folder(store, folder)
+    assert [w.code for w in report.warnings] == ["SCAN_DIR_UNREADABLE"]

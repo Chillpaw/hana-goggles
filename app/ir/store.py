@@ -1,7 +1,10 @@
 """SQLite persistence: one project per database file.
 
 `view.result_json` holds the full ParseResult, the source of truth for pages; the `view`
-and `node` columns are query summaries. Annotations have no foreign key on purpose: they
+and `node` columns are query summaries. Node rows are keyed per view: node ids are
+`<view id>/<node name>` and both parts may contain `/`, so two views can produce the same
+node id. `project.last_import_json` keeps the last import report (without the estate, which
+is rebuilt per request) so the web app can show what an import skipped or warned about. Annotations have no foreign key on purpose: they
 must outlive the view or node they describe (they are marked stale instead).
 
 One connection per Store: open a Store per unit of work (e.g. one per request), close it
@@ -24,14 +27,17 @@ from app.ir.models import Annotation, Node, ParseResult, Project, TargetKind, Vi
 if TYPE_CHECKING:  # the IR layer does not import ingest at runtime
     from app.ingest.scan import ScannedView
 
-SCHEMA_VERSION = 2  # 2: annotation keyed by (target_kind, target_id)
+# 2: annotation keyed by (target_kind, target_id)
+# 3: node keyed by (view_id, id); project.last_import_json
+SCHEMA_VERSION = 3
 BUSY_TIMEOUT_MS = 5000
 _SAVEPOINT = "store_nested"
 
 _SCHEMA = """
 CREATE TABLE project (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    name TEXT, source_folder TEXT, imported_at TEXT
+    name TEXT, source_folder TEXT, imported_at TEXT,
+    last_import_json TEXT
 );
 CREATE TABLE view (
     id TEXT PRIMARY KEY, rel_path TEXT, package_path TEXT, file_hash TEXT, view_type TEXT,
@@ -39,10 +45,10 @@ CREATE TABLE view (
     warning_count INTEGER, result_json TEXT NOT NULL
 );
 CREATE TABLE node (
-    id TEXT PRIMARY KEY, view_id TEXT REFERENCES view(id) ON DELETE CASCADE,
-    name TEXT, node_type TEXT, understood INTEGER, raw_hash TEXT
+    id TEXT NOT NULL, view_id TEXT NOT NULL REFERENCES view(id) ON DELETE CASCADE,
+    name TEXT, node_type TEXT, understood INTEGER, raw_hash TEXT,
+    PRIMARY KEY (view_id, id)
 );
-CREATE INDEX node_view_id ON node(view_id);
 CREATE TABLE annotation (
     target_id TEXT NOT NULL,
     target_kind TEXT NOT NULL CHECK (target_kind IN ('view', 'node')),
@@ -164,6 +170,16 @@ class Store:
             "ON CONFLICT (id) DO UPDATE SET name = excluded.name, "
             "source_folder = excluded.source_folder, imported_at = excluded.imported_at",
             (name, source_folder, now_iso()))
+
+    def get_last_import(self) -> str | None:
+        """The last import report as JSON text, not validated (it may predate a model
+        change); None before the first import."""
+        row = self.conn.execute("SELECT last_import_json FROM project WHERE id = 1").fetchone()
+        return row["last_import_json"] if row else None
+
+    def set_last_import(self, report_json: str) -> None:
+        """Requires the project row (`set_project` first)."""
+        self.conn.execute("UPDATE project SET last_import_json = ? WHERE id = 1", (report_json,))
 
     # -- views -----------------------------------------------------------------------
 

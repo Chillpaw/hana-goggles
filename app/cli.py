@@ -24,6 +24,7 @@ _DB_HELP = "project database file (default: $CALCVIEW_DB, else ./calcview.db)"
 
 
 def main(argv: list[str] | None = None) -> int:
+    _tolerant_console()
     parser = argparse.ArgumentParser(prog="calcview")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -40,10 +41,12 @@ def main(argv: list[str] | None = None) -> int:
     audit = sub.add_parser("audit", help="print a structure-only report of a folder (no names)")
     audit.add_argument("folder", type=Path)
     audit.add_argument("--format", choices=FORMATS, default="text")
+    audit.add_argument("--output", type=Path, default=None, metavar="FILE",
+                       help="write the report to FILE as UTF-8 instead of printing it")
     args = parser.parse_args(argv)
 
     if args.command == "audit":
-        return _audit(args.folder, args.format)
+        return _audit(args.folder, args.format, args.output)
 
     db = args.db if args.db is not None else default_db_path()
     if args.command == "import":
@@ -53,15 +56,34 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _audit(folder: Path, fmt: str) -> int:
-    # The folder is the user's own argument, so echoing it in an error is fine; the report
-    # itself never contains it.
+def _tolerant_console() -> None:
+    """A Windows console (cp1252, cp437, ...) cannot encode every view name; print an
+    escape such as \\xe9 instead of crashing. Streams without reconfigure (some test or
+    IDE wrappers) are left alone."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="backslashreplace")
+
+
+def _audit(folder: Path, fmt: str, output_file: Path | None) -> int:
+    # The folder and output file are the user's own arguments, so echoing them on stderr
+    # is fine; the report itself never contains them.
     try:
         output = run_audit(folder, fmt)
     except NotADirectoryError:
         print(f"calcview: {folder} is not a directory", file=sys.stderr)
         return 2
-    sys.stdout.write(output)
+    if output_file is None:
+        sys.stdout.write(output)
+        return 0
+    # UTF-8 with "\n" line ends on every platform (PowerShell 5.1's `>` writes UTF-16).
+    try:
+        with open(output_file, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(output)
+    except OSError as exc:
+        print(f"calcview: cannot write {output_file}: {_one_line(str(exc))}", file=sys.stderr)
+        return 2
+    print(f"calcview: wrote the audit report to {output_file}", file=sys.stderr)
     return 0
 
 
@@ -126,6 +148,7 @@ def format_report(report: ImportReport, project_name: str, db: Path) -> list[str
         f"Reparsed: {report.reparsed}",
         f"Removed: {report.removed}",
         f"Failed: {report.failed}",
+        f"Not stored: {report.not_stored}",
         f"Stale annotations: {report.stale_annotations}",
         f"Internal dependencies: {len(internal)}",
         *(f"  {d.consumer} -> {d.producer}" for d in internal),

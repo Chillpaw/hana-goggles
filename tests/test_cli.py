@@ -38,6 +38,7 @@ def test_import_prints_report_and_stores_views(tmp_path, folder, capsys):
         "Reparsed: 0",
         "Removed: 0",
         "Failed: 0",
+        "Not stored: 0",
         "Stale annotations: 0",
         "Internal dependencies: 1",
         f"  {VIEW} -> {PRODUCER}",
@@ -154,3 +155,54 @@ def test_failed_import_keeps_existing_db(tmp_path, folder, capsys, monkeypatch):
     monkeypatch.setattr(cli, "import_folder", lambda *a, **k: (_ for _ in ()).throw(OSError("x")))
     code, _, _ = _run(capsys, "import", str(folder), "--db", str(db))
     assert code == 2 and db.exists()
+
+
+# ---------------------------------------------------------------- final-review fix round
+
+def _producer_xml(view_id, source_id):
+    xml = (FIXTURES / "graphical" / f"{PRODUCER}.calculationview").read_text(encoding="utf-8")
+    xml = xml.replace(f'id="{PRODUCER}"', f'id="{view_id}"', 1)
+    xml = xml.replace('DataSource id="TABLE_C"', f'DataSource id="{source_id}"')
+    return xml.replace('node="#TABLE_C"', f'node="#{source_id}"')
+
+
+def test_node_ids_colliding_across_views_import(tmp_path, capsys):
+    """View `A` reading source `B/X` and view `A/B` reading source `X` both have a node
+    `A/B/X` (BW tables are named `/BIC/...`); node rows are keyed per view."""
+    folder = tmp_path / "views"
+    folder.mkdir()
+    (folder / "A.calculationview").write_text(_producer_xml("A", "B/X"), encoding="utf-8")
+    (folder / "AB.calculationview").write_text(_producer_xml("A/B", "X"), encoding="utf-8")
+    db = tmp_path / "p.db"
+    code, lines, err = _run(capsys, "import", str(folder), "--db", str(db))
+    assert code == 0 and err == ""
+    assert "Added: 2" in lines and "Not stored: 0" in lines
+    with Store(db) as store:
+        assert "A/B/X" in store.node_hashes("A") and "A/B/X" in store.node_hashes("A/B")
+        assert store.node_hashes("A")["A/B/X"] != store.node_hashes("A/B")["A/B/X"]
+
+
+def test_cli_import_stores_the_report(tmp_path, folder, capsys):
+    from app.ingest.importer import last_import
+
+    shutil.copy(folder / f"{VIEW}.calculationview", folder / f"COPY_{VIEW}.calculationview")
+    db = tmp_path / "p.db"
+    assert _run(capsys, "import", str(folder), "--db", str(db))[0] == 0
+    with Store(db) as store:
+        report = last_import(store)
+    assert report.added == 2 and [w.code for w in report.warnings] == ["DUPLICATE_VIEW_ID"]
+
+
+def test_output_that_the_console_cannot_encode_is_escaped(tmp_path, folder, monkeypatch):
+    import io
+    import sys
+
+    (folder / f"{PRODUCER}.calculationview").write_text(
+        _producer_xml("VIEW_\u00e9", "TABLE_C"), encoding="utf-8")
+    raw = io.BytesIO()
+    stdout = io.TextIOWrapper(raw, encoding="ascii", errors="strict")
+    monkeypatch.setattr(sys, "stdout", stdout)
+    monkeypatch.setattr(sys, "stderr", io.TextIOWrapper(io.BytesIO(), encoding="ascii"))
+    assert cli.main(["import", str(folder), "--db", str(tmp_path / "p.db")]) == 0
+    stdout.flush()
+    assert b"VIEW_\\xe9" in raw.getvalue()

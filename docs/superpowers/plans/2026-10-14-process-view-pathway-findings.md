@@ -48,8 +48,12 @@ Carried forward from the subagent-driven build of plan `2026-10-14-process-view-
 - Ruling (T8 review): annotation identity is (target_kind, target_id): `PRIMARY KEY (target_kind, target_id)`, `get_annotation(target_id, kind)` and `mark_stale(target_ids, reason, kind)` take the kind, so a view and a step sharing an id keep separate notes and staleness. `SCHEMA_VERSION = 2`; a version-1 db is refused with the existing "cannot use this database" message and no migration (no real data exists yet) — cost if wrong: a one-off migration copying the v1 annotation table.
 - Ruling (T8 review): orphaned notes are never hidden. A step note whose step is gone belongs to the longest existing view id that prefixes it plus `/` and is listed on that view's Notes tab ("Notes on steps that no longer exist"). A step note with no such view, or stale with reason "view removed", is listed on /views under "Notes on views that no longer exist", with view notes of removed views. The "view removed" reason is what tells view `A/B` removed (its `A/B/X` goes to the removed list) from a step of view `A` (the prefix alone cannot) — cost if wrong: a step note already stale "node removed" before its view `A/B` was removed still lands on view `A`; fixing that needs the owning view id stored on the annotation.
 - Ruling (T8): the views list "Sign-off" column sorts no note first, then draft, reviewed, approved.
+- Ruling (T10): the estate map draws one edge per producer→consumer pair (with a count) and uses `e<index>` edge ids; PNG export uses a blob URL with the scale capped under 16000px per side.
+- Ruling (T10): the ambiguous-source marker is tested at estate level only; the store keeps one row per view id, so it cannot reach the web UI until identity includes the package (see T3).
+- Ruling (T10 review): shared page-loading helpers live in `app/web/loading.py`; every response carries `X-Content-Type-Options: nosniff`.
 
 ## Deferred minor findings
+- T10: a view id equal to a leaf id (e.g. `table:SCHEMA_1.TABLE_A`) would merge nodes in `estate_digraph` and collide in Cytoscape; fix in the estate model if real ids ever look like that.
 - T9: each file is parsed twice by the audit (parser + structure scan); fine at estate scale.
 - T7: view ids `.` or `..` would be normalised away by browsers.
 - T7: every node click recomputes the estate; fine at a few hundred views.
